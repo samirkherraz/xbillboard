@@ -1,0 +1,3 @@
+[Desktop Entry]
+Name=XBillBoard
+Exec=python /usr/local/xbillboard/ /etc/xbillboard.conf

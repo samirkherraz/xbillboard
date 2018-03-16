@@ -1,0 +1,3 @@
+#!/bin/bash 
+chmod +x /usr/local/xbillboard/__main__.py
+chmod +w /usr/local/xbillboard/
