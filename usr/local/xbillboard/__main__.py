@@ -4,10 +4,10 @@ import ConfigParser
 import os
 import sys
 from time import sleep
-import signal
 from ScreenManager import ScreenManager
 from Sync import Sync
-
+from GtkKeyHandler import GtkKeyHandler, Gtk
+from SystemCall import SystemCall
 
 class Loader():
 
@@ -66,25 +66,13 @@ class Loader():
             s.start()
 
     def stop(self):
-        for s in self.Syncs:
-            s.stop()
-            s.kill()
+        os.killpg(os.getpid(), 9)
+    
 
-        for s in self.Screens:
-            s.stop()
-            s.kill()
 
-    def join(self):
-        for s in self.Syncs:
-            s.join()
-        for s in self.Screens:
-            s.join()
 
     def __init__(self,config):
-        signal.signal(signal.SIGINT, self.stop)
-        signal.signal(signal.SIGABRT, self.stop)
-        signal.signal(signal.SIGTERM, self.stop)
-
+        
         self.Syncs = []
         self.Screens = []
         self.config = None
@@ -107,6 +95,10 @@ if __name__ == '__main__':
     try:
         l = Loader(sys.argv[1])
         l.start()
-        l.join()
+        window = GtkKeyHandler()
+        window.show_all()
+        Gtk.main()
+        l.stop()
+
     except Exception as e:
         print e

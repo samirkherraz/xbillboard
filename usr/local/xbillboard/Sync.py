@@ -2,31 +2,22 @@
 
 import os
 import sys
-import threading
-from threading import Thread
 import time
 from SystemCall import SystemCall
+from ThLoop import ThLoop
 
-
-class Sync(Thread):
+class Sync(ThLoop):
     def __init__(self, url, localdir, delay):
-        Thread.__init__(self)
-        self._stop = threading.Event()
+        ThLoop.__init__(self,delay)
         self.url = url
         self.localdir = localdir
-        self.delay = int(delay)
-
-    def run(self):
+        self.delay = float(delay)
         self.cmd = "wget -N "+self.url+" -P "+self.localdir
-        while not self.stopped():
-            SystemCall(self.cmd, False)
-            time.sleep(self.delay)
 
-    def stopped(self):
-        return self._stop.isSet()
-
+    def loopjob(self):
+        SystemCall(self.cmd)
+        return False
+        
     def cleanUp(self):
-        SystemCall("rm -vf "+self.localdir+"*", False)
+        SystemCall("rm -vf "+self.localdir+"*")
 
-    def stop(self):
-        self._stop.set()

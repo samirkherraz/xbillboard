@@ -4,7 +4,8 @@ import os
 
 class SystemCall():
 
-    def __init__(self, com, read):
+    def __init__(self, com, read=False):
+        print "EXE:::"+com+"\n\n"
         if read:
             self.result = os.popen(com).read()
         else:

@@ -1,20 +1,15 @@
 #!/usr/bin/python
 
-import os
-import sys
-
 from Screen import Screen
-from SystemCall import SystemCall
+
+from GtkKeyHandler import Gdk
 
 
 class ScreenManager():
     def __init__(self):
-        width = SystemCall(
-            "xrandr | grep '*' |awk -F '\n' '{print $1}' | awk -F ' ' '{print $1}' |  awk -F 'x' '{print $1}' ", True)
-        height = SystemCall(
-            "xrandr | grep '*' |awk -F '\n' '{print $1}' | awk -F ' ' '{print $1}' |  awk -F 'x' '{print $2}' ", True)
-        self.screenWidth = int(width.getResult())
-        self.screenHeight = int(height.getResult())
+        sc = Gdk.Screen.get_default()
+        self.screenWidth = sc.get_width()
+        self.screenHeight = sc.get_height()
 
     def getLayout(self, x, y):
         r = []

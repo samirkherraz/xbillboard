@@ -1,7 +1,7 @@
 Package: Xbillboard
 Version: 0.0.1
 Section: hidden 
-Depends: python,impressive
+Depends: python,impressive,wget
 Architecture: all
 Installed-Size: 15Kb
 Maintainer: Samir KHERRRAZ <samir.kherraz@outlook.fr>
