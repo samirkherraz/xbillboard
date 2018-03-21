@@ -9,6 +9,7 @@ from Sync import Sync
 from GtkKeyHandler import GtkKeyHandler, Gtk
 from SystemCall import SystemCall
 
+
 class Loader():
 
     def initConfig(self, filename):
@@ -18,7 +19,8 @@ class Loader():
         self.dataDir = self.config.get('General', 'DataDir')
         self.screenDelay = self.config.get('General', 'ScreenDelay')
         self.syncDelay = self.config.get('General', 'SyncDelay')
-        self.activeScreen = self.config.get('General', 'ActiveScreen').splitlines()
+        self.activeScreen = self.config.get(
+            'General', 'ActiveScreen').splitlines()
         self.layoutx = self.config.getint('General', 'LayoutX')
         self.layouty = self.config.getint('General', 'LayoutY')
 
@@ -66,13 +68,24 @@ class Loader():
             s.start()
 
     def stop(self):
-        os.killpg(os.getpid(), 9)
-    
+        for s in self.Syncs:
+            s.stop()
+
+        for s in self.Screens:
+            s.stop()
+
+
+    def join(self):
+        for s in self.Syncs:
+            s.join()
+
+        for s in self.Screens:
+            s.join()
 
 
 
-    def __init__(self,config):
-        
+    def __init__(self, config):
+
         self.Syncs = []
         self.Screens = []
         self.config = None
@@ -92,6 +105,7 @@ class Loader():
 
 
 if __name__ == '__main__':
+
     try:
         l = Loader(sys.argv[1])
         l.start()
@@ -99,6 +113,6 @@ if __name__ == '__main__':
         window.show_all()
         Gtk.main()
         l.stop()
-
+        l.join()
     except Exception as e:
         print e

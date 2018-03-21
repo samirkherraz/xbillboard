@@ -18,19 +18,14 @@ class Screen(ThLoop):
         self.height = height
         self.posx = posx
         self.posy = posy
-        self.filesFolder = ""
-        self.cmd = "impressive  --nologo -t FadeOutFadeIn -x -f -a "+str(self.delay)+" -Q -g " + \
-                str(self.width)+"x"+str(self.height)+"+"+str(self.posx) + \
-                "+"+str(self.posy)+" "
-
-    def loopjob(self):
         
+    def loopjob(self):
+        path = os.path.dirname(os.path.realpath(__file__))+"/"
         files = sorted([os.path.join(self.filesFolder, file)
                         for file in os.listdir(self.filesFolder)], key=os.path.getctime)
         if len(files) > 0:
-            fileList = (" ").join(files)
-            cmd = self.cmd+fileList
-            SystemCall(cmd)
+            for f in files:
+                SystemCall("python "+path+"GtkPdfViewer.py "+str(self.width)+" "+str(self.height)+" "+str(self.posx)+" "+str(self.posy)+" "+str(self.delay)+" "+f)
             return True
         else:
             return False
