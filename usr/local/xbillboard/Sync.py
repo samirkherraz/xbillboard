@@ -2,13 +2,13 @@
 
 import os
 import sys
-import time
 from SystemCall import SystemCall
 from ThLoop import ThLoop
 
+
 class Sync(ThLoop):
     def __init__(self, url, localdir, delay):
-        ThLoop.__init__(self,delay)
+        ThLoop.__init__(self, delay)
         self.url = url
         self.localdir = localdir
         self.delay = float(delay)
@@ -17,7 +17,6 @@ class Sync(ThLoop):
     def loopjob(self):
         SystemCall(self.cmd)
         return False
-        
+
     def cleanUp(self):
         SystemCall("rm -vf "+self.localdir+"*")
-

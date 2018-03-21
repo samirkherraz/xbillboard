@@ -4,10 +4,14 @@ import ConfigParser
 import os
 import sys
 from time import sleep
-from ScreenManager import ScreenManager
+from Screen import ScreenManager
 from Sync import Sync
-from GtkKeyHandler import GtkKeyHandler, Gtk
+from GtkKeyHandler import GtkKeyHandler
 from SystemCall import SystemCall
+
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk
 
 
 class Loader():
@@ -74,15 +78,12 @@ class Loader():
         for s in self.Screens:
             s.stop()
 
-
     def join(self):
         for s in self.Syncs:
             s.join()
 
         for s in self.Screens:
             s.join()
-
-
 
     def __init__(self, config):
 

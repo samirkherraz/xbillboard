@@ -1,16 +1,19 @@
+#!/usr/bin/python
+
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gdk
+
 
 class GtkKeyHandler(Gtk.ApplicationWindow):
 
     def __init__(self):
         Gtk.ApplicationWindow.__init__(self, title="Keyboard Handler")
-        self.move(0,0)
-        self.set_decorated(False) 
+        self.move(0, 0)
+        self.set_decorated(False)
         self.set_keep_above(False)
-        self.set_default_size(0,0)
-        self.connect("key-press-event", self.on_key_release)          
+        self.set_default_size(0, 0)
+        self.connect("key-press-event", self.on_key_release)
         self.connect("delete_event", Gtk.main_quit)
         self.connect("focus-out-event", self.bring_to_front)
         self.connect("focus-in-event", self.bring_to_front)
@@ -20,9 +23,8 @@ class GtkKeyHandler(Gtk.ApplicationWindow):
         self.present()
 
     def on_key_release(self, widget, ev, data=None):
-        if ev.keyval == Gdk.KEY_Escape: #If Escape pressed, reset text
+        if ev.keyval == Gdk.KEY_Escape:  # If Escape pressed, reset text
             Gtk.main_quit()
-    def bring_to_front(self,widget, event):
+
+    def bring_to_front(self, widget, event):
         self.present()
-
-

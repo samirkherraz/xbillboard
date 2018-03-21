@@ -1,25 +1,25 @@
 #!/usr/bin/python
 import sys
 import time
-import gi
 from ThLoop import ThLoop
+import gi
 gi.require_version('Gtk', '3.0')
 gi.require_version('Poppler', '0.18')
-from gi.repository import Gtk,Poppler, Gdk, GObject
+from gi.repository import Gtk, Poppler
 
 
 class PreviewWindow(Gtk.ApplicationWindow):
-    def __init__(self,w,h,x,y, filename):
+    def __init__(self, w, h, x, y, filename):
         Gtk.ApplicationWindow.__init__(self, title="Pdf Viewer")
-        self.move(x,y)
-        self.set_default_size(w,h)
-        self.set_decorated(False)       
+        self.move(x, y)
+        self.set_default_size(w, h)
+        self.set_decorated(False)
         self.set_keep_above(False)
         self.unstick()
         self.previewDrawingArea = Gtk.DrawingArea()
         self.add(self.previewDrawingArea)
         self.previewDrawingArea.connect("draw", self.__on_expose)
-        self.connect("delete_event", self.close)   
+        self.connect("delete_event", self.close)
         uri = "file://" + filename
 
         self.document = Poppler.Document.new_from_file(uri, None)
@@ -28,13 +28,12 @@ class PreviewWindow(Gtk.ApplicationWindow):
         self.current_page = self.document.get_page(self.pageNumber)
 
         p_width, p_height = self.current_page.get_size()
-        self.scale = min(  w/p_width, h/p_height )
-
-
+        self.scale = min(w/p_width, h/p_height)
 
     def __refresh(self):
 
-        self.current_page = self.document.get_page(min(self.pageNumber, self.n_pages-1))
+        self.current_page = self.document.get_page(
+            min(self.pageNumber, self.n_pages-1))
         self.previewDrawingArea.queue_draw()
 
     def __on_expose(self, widget, surface):
@@ -52,18 +51,14 @@ class PreviewWindow(Gtk.ApplicationWindow):
         self.pageNumber += 1
         print self.pageNumber
 
-
-    def close(self, widget, other = None):
+    def close(self, widget, other=None):
         Gtk.main_quit()
-    
-    
+
     def quit(self):
         Gtk.main_quit()
-    
+
     def end(self):
         return self.pageNumber >= self.n_pages
-
-
 
 
 class Auto(ThLoop):
@@ -79,14 +74,11 @@ class Auto(ThLoop):
         else:
             self.window.quit()
             return True
-    
-
-
 
 
 class GtkPdfViewer:
-    def __init__(self, w,h,x,y,d,f):
-        previewWindow = PreviewWindow(w,h,x,y,f)
+    def __init__(self, w, h, x, y, d, f):
+        previewWindow = PreviewWindow(w, h, x, y, f)
         previewWindow.show_all()
         auto = Auto(previewWindow, d)
         auto.start()
@@ -109,7 +101,4 @@ if __name__ == '__main__':
     print "File: "+sys.argv[6]
     file = str(sys.argv[6])
 
-    
-
-    GtkPdfViewer(w,h,x,y,delay, file)
-
+    GtkPdfViewer(w, h, x, y, delay, file)

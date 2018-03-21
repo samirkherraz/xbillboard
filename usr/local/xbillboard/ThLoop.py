@@ -4,7 +4,6 @@ import os
 import sys
 import threading
 from threading import Thread
-
 import time
 
 
@@ -16,9 +15,9 @@ class ThLoop(Thread):
         self.delay = float(delay)
 
     def run(self):
-         while not self.stopped():
-             if not self.loopjob():
-                 time.sleep(self.delay)
+        while not self.stopped():
+            if not self.loopjob():
+                time.sleep(self.delay)
 
     def stopped(self):
         return self._stop.isSet()
