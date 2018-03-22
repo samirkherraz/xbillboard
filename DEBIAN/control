@@ -1,7 +1,7 @@
 Package: Xbillboard
 Version: 0.0.1
 Section: hidden 
-Depends: python,wget,python-gi,python-gobject, lightdm, xorg, libgtk-3-dev , python-poppler
+Depends: python,wget,python-gi,libgtk-3-dev,gir1.2-poppler-0.18,xorg,xdm
 Architecture: all
 Installed-Size: 15Kb
 Maintainer: Samir KHERRRAZ <samir.kherraz@outlook.fr>
