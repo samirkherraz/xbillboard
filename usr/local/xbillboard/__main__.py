@@ -101,9 +101,10 @@ class Loader(Gtk.ApplicationWindow):
 
     def __init__(self, config):
         Gtk.Window.__init__(self, title="XBillBoard")
+        sc = Gdk.Screen.get_default()
         self.move(0, 0)
-        self.set_default_size(1000, 600)
-        self.fullscreen()
+        self.set_default_size(sc.get_width(), sc.get_height())
+        self.set_decorated(False)       
         self.connect("delete_event", Gtk.main_quit)
         self.connect("key-press-event", self.on_key_release)
 
@@ -135,7 +136,7 @@ class Loader(Gtk.ApplicationWindow):
 if __name__ == '__main__':
     Gdk.threads_init()
     GObject.threads_init()
-    window = Loader("etc/xbillboard.conf")
+    window = Loader(sys.argv[1])
     Gtk.main()
     window.stop()
     window.join()
