@@ -25,7 +25,7 @@ class Screen(Thread):
 
     def auto_step(self):
         i = 0
-        while i < self.n_pages:
+        while i < self.n_pages and not self.stopped():
             self.current_page = self.document.get_page(i)
             i += 1
             gobject.idle_add(self.canvas.queue_draw)

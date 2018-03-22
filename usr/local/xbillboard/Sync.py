@@ -18,8 +18,7 @@ class Sync(Thread):
     def run(self):
         while not self.stopped():
             os.system(self.cmd)
-            if not self.stopped():
-                self._stop.wait(self.delay)
+            self._stop.wait(self.delay)
 
     def cleanUp(self):
         os.system("rm -vf "+self.localdir+"*")
