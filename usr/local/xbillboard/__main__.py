@@ -3,19 +3,16 @@
 import ConfigParser
 import os
 import sys
-from time import sleep
-from Screen import ScreenManager
+from Screen import Screen
 from Sync import Sync
-from GtkKeyHandler import GtkKeyHandler
-from SystemCall import SystemCall
-
 import gi
+from threading import Lock
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk
+from gi.repository import Gtk, Gdk, GObject
 
 
-class Loader():
-
+class Loader(Gtk.ApplicationWindow):
+   
     def initConfig(self, filename):
 
         self.config = ConfigParser.RawConfigParser()
@@ -32,12 +29,14 @@ class Loader():
 
         return len(self.activeScreen) == self.layoutx*self.layouty
 
-    def initScreens(self):
-        self.Screens = ScreenManager().getLayout(self.layoutx, self.layouty)
-
     def prepare(self):
+        vBox = Gtk.VBox(spacing=0)
         for i in range(self.layoutx):
+            hBox = Gtk.HBox(spacing=0)
             for j in range(self.layouty):
+                canvas = Gtk.DrawingArea()
+                canvas.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(65535,65535,65535))
+                hBox.add(canvas)
                 sc = self.activeScreen[self.layoutx*i+j]
                 isCopy = None
                 Dir = None
@@ -55,37 +54,56 @@ class Loader():
                     for f in fileList:
                         self.Syncs.append(Sync(f, Dir, self.syncDelay))
 
-                self.Screens[self.layoutx*i+j].setFilesDir(Dir)
-
                 try:
                     delay = self.config.get(sc, "Delay")
-                    self.Screens[layoutx*i+j].setDelay(delay)
+                    screen = Screen(self,canvas,delay, Dir)
                 except:
-                    self.Screens[self.layoutx*i+j].setDelay(self.screenDelay)
+                    screen = Screen(self,canvas,self.screenDelay, Dir)
+
+                self.Screens.append(screen)
+                #canvas.connect_before("draw", self.unlock)
+                canvas.connect("draw", screen.on_expose)
+                #canvas.connect_after("draw", self.lock)
+
+            vBox.add(hBox)
+        self.add(vBox)
+        self.show_all()
 
     def start(self):
-        for s in self.Syncs:
-            s.cleanUp()
-            s.start()
-
         for s in self.Screens:
             s.start()
+        # for s in self.Syncs:
+        #     s.start()
 
     def stop(self):
-        for s in self.Syncs:
-            s.stop()
-
         for s in self.Screens:
             s.stop()
+        # for s in self.Syncs:
+        #     s.stop()
+   
 
-    def join(self):
-        for s in self.Syncs:
-            s.join()
 
-        for s in self.Screens:
-            s.join()
+    def render(self,canvas, surface, document):
+        #self._lock.acquire()
+        if document != None:
+            p_width, p_height = document.get_size()
+            width = canvas.get_allocation().width
+            height= canvas.get_allocation().height
+            scale = min(width/p_width, height/p_height)
+            if scale != 1:
+                    surface.scale(scale, scale)
+            document.render(surface)
+
+
+        #self.lock.release()
 
     def __init__(self, config):
+        Gtk.Window.__init__(self, title="XBillBoard")
+        self.move(0, 0)
+        self.set_default_size(1000, 600)
+        self.fullscreen()
+        self.connect("delete_event", Gtk.main_quit)
+        self.connect("key-press-event", self.on_key_release)
 
         self.Syncs = []
         self.Screens = []
@@ -96,24 +114,27 @@ class Loader():
         self.activeScreen = None
         self.layoutx = None
         self.layouty = None
+        
+        
         self.initConfig(config)
 
         if self.configCheck():
-            self.initScreens()
             self.prepare()
+            self.start()
+
         else:
             raise Exception('A very specific bad thing happened.')
 
+    def on_key_release(self, widget, ev, data=None):
+        if ev.keyval == Gdk.KEY_Escape:  # If Escape pressed, reset text
+            Gtk.main_quit()   
+
 
 if __name__ == '__main__':
+    Gdk.threads_init()
+    GObject.threads_init()
+    window = Loader("etc/xbillboard.conf")
+    Gtk.main()
+    window.stop()
 
-    try:
-        l = Loader(sys.argv[1])
-        l.start()
-        window = GtkKeyHandler()
-        window.show_all()
-        Gtk.main()
-        l.stop()
-        l.join()
-    except Exception as e:
-        print e
+    
