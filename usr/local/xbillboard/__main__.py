@@ -10,12 +10,12 @@ from Screen import Screen
 from Sync import Sync
 
 import gtk
+import gtk.gtkgl
 
 
 class Loader(gtk.Window):
 
     def initConfig(self, filename):
-
         try:
             self.config = ConfigParser.RawConfigParser()
             self.config.read(filename)
@@ -37,7 +37,10 @@ class Loader(gtk.Window):
         for i in range(self.layouty):
             hBox = gtk.HBox(spacing=0)
             for j in range(self.layoutx):
-                canvas = gtk.DrawingArea()
+                if self.use_opengl:
+                    canvas = gtk.gtkgl.DrawingArea()
+                else:
+                    canvas = gtk.DrawingArea()
                 canvas.modify_bg(gtk.STATE_NORMAL, gtk.gdk.Color("#ffffff"))
                 hBox.add(canvas)
                 sc = self.activeScreen[self.layouty*i+j]
@@ -102,8 +105,9 @@ class Loader(gtk.Window):
                 surface.scale(scale, scale)
             document.render(surface)
 
-    def __init__(self, config):
+    def __init__(self, config, opengl):
         gtk.Window.__init__(self)
+        self.use_opengl = opengl
         self.set_title("XBillBoard")
         self.move(0, 0)
         self.set_default_size(self.get_screen().get_width(),
@@ -137,10 +141,21 @@ class Loader(gtk.Window):
 
 
 if __name__ == '__main__':
+    
     try:
-        window = Loader(sys.argv[1])
+        configfile = sys.argv[1]
     except:
-        window = Loader("/etc/xbillboard.conf")
+        configfile = "/etc/xbillboard.conf"
+    
+    try:
+        opengl = bool(sys.argv[2].upper() == "YES" or sys.argv[2].upper() == "TRUE")
+    except:
+        opengl = False
+
+    print "Config file : " + configfile
+    print "Using opengl : " + str(opengl)
+    
+    window = Loader(configfile, opengl)
     gtk.main()
     window.stop()
     window.join()
