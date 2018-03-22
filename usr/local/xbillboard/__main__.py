@@ -61,9 +61,7 @@ class Loader(Gtk.ApplicationWindow):
                     screen = Screen(self,canvas,self.screenDelay, Dir)
 
                 self.Screens.append(screen)
-                #canvas.connect_before("draw", self.unlock)
                 canvas.connect("draw", screen.on_expose)
-                #canvas.connect_after("draw", self.lock)
 
             vBox.add(hBox)
         self.add(vBox)
@@ -72,19 +70,24 @@ class Loader(Gtk.ApplicationWindow):
     def start(self):
         for s in self.Screens:
             s.start()
-        # for s in self.Syncs:
-        #     s.start()
+        for s in self.Syncs:
+            s.start()
 
     def stop(self):
         for s in self.Screens:
             s.stop()
-        # for s in self.Syncs:
-        #     s.stop()
+        for s in self.Syncs:
+            s.stop()
+
+    def join(self):
+        for s in self.Screens:
+            s.join()
+        for s in self.Syncs:
+            s.join()
    
 
 
     def render(self,canvas, surface, document):
-        #self._lock.acquire()
         if document != None:
             p_width, p_height = document.get_size()
             width = canvas.get_allocation().width
@@ -95,7 +98,6 @@ class Loader(Gtk.ApplicationWindow):
             document.render(surface)
 
 
-        #self.lock.release()
 
     def __init__(self, config):
         Gtk.Window.__init__(self, title="XBillBoard")
@@ -126,7 +128,7 @@ class Loader(Gtk.ApplicationWindow):
             raise Exception('A very specific bad thing happened.')
 
     def on_key_release(self, widget, ev, data=None):
-        if ev.keyval == Gdk.KEY_Escape:  # If Escape pressed, reset text
+        if ev.keyval == Gdk.KEY_Escape:  
             Gtk.main_quit()   
 
 
@@ -136,5 +138,6 @@ if __name__ == '__main__':
     window = Loader("etc/xbillboard.conf")
     Gtk.main()
     window.stop()
+    window.join()
 
     

@@ -9,7 +9,6 @@ import sys
 
 import threading
 from threading import Thread
-import time
 
 
 
@@ -36,8 +35,7 @@ class Screen(Thread):
             self.canvas.queue_draw()
             Gdk.threads_leave()
             i += 1
-            if not self.stopped():
-                time.sleep(self.delay)
+            self._stop.wait(self.delay)
 
     def loadFile(self, file):
         uri = "file://" + file
@@ -55,9 +53,8 @@ class Screen(Thread):
                     self.loadFile(f)
                     self.auto_step()
             else:
-                if not self.stopped():
-                    time.sleep(self.delay)
-        print "Exit"
+                self._stop.wait(self.delay)
+        print "Screen Exit"
             
 
     def stop(self):
