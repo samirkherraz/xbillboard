@@ -38,11 +38,14 @@ class Screen(Thread):
             self._stop.wait(self.delay)
 
     def loadFile(self, file):
-        uri = "file://" + file
-        self.document = Poppler.Document.new_from_file(uri, None)
-        self.n_pages = self.document.get_n_pages()
-        self.current_page = self.document.get_page(0)
-       
+        try:
+            uri = "file://" + file
+            self.document = Poppler.Document.new_from_file(uri, None)
+            self.n_pages = self.document.get_n_pages()
+            self.current_page = self.document.get_page(0)
+            return True
+        except:
+            return False
 
     def run(self):
         while not self.stopped():
@@ -50,10 +53,14 @@ class Screen(Thread):
                             for file in os.listdir(self.filesFolder)], key=os.path.getctime)
             if len(files) > 0:
                 for f in files:
-                    self.loadFile(f)
-                    self.auto_step()
+                    if self.loadFile(f):
+                        self.auto_step()
             else:
-                self._stop.wait(self.delay)
+                if self.loadFile("/usr/local/xbillboard/logo.pdf"):
+                    self.auto_step()
+                else:
+                    self._stop.wait(self.delay)
+ 
         print "Screen Exit"
             
 
