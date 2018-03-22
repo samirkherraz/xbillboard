@@ -1,22 +1,19 @@
 #!/usr/bin/python
-import gi
-gi.require_version('Gtk', '3.0')
-gi.require_version('Poppler', '0.18')
 
-from gi.repository import Gtk,Gdk, Poppler, GObject
 import os
 import sys
 
 import threading
 from threading import Thread
-
+import gtk
+import gobject
+import poppler
 
 
 class Screen(Thread):
 
-    def __init__(self,parent, canvas, delay, filesFolder):
+    def __init__(self, parent, canvas, delay, filesFolder):
         Thread.__init__(self)
-        self.window = Gtk.OffscreenWindow()
         self._stop = threading.Event()
         self.canvas = canvas
         self.filesFolder = filesFolder
@@ -24,23 +21,20 @@ class Screen(Thread):
         self.n_pages = None
         self.pageNumber = 0
         self.current_page = None
-        self.parent = parent
         self.delay = float(delay)
-        
+
     def auto_step(self):
         i = 0
-        while i < self.n_pages :
+        while i < self.n_pages:
             self.current_page = self.document.get_page(i)
-            Gdk.threads_enter()
-            self.canvas.queue_draw()
-            Gdk.threads_leave()
             i += 1
+            gobject.idle_add(self.canvas.queue_draw)
             self._stop.wait(self.delay)
 
     def loadFile(self, file):
         try:
-            uri = "file://" + file
-            self.document = Poppler.Document.new_from_file(uri, None)
+            self.document = poppler.document_new_from_file(
+                "file://"+file, None)
             self.n_pages = self.document.get_n_pages()
             self.current_page = self.document.get_page(0)
             return True
@@ -60,28 +54,22 @@ class Screen(Thread):
                     self.auto_step()
                 else:
                     self._stop.wait(self.delay)
- 
-        print "Screen Exit"
-            
 
     def stop(self):
-        Gdk.threads_leave()
+        # gtk.gdk.threads_leave()
         self._stop.set()
 
     def stopped(self):
         return self._stop.isSet()
 
-
-       
     def on_expose(self, widget, surface):
-        
+
         if self.current_page != None:
+            cr = widget.window.cairo_create()
             p_width, p_height = self.current_page.get_size()
             width = self.canvas.get_allocation().width
-            height= self.canvas.get_allocation().height
+            height = self.canvas.get_allocation().height
             scale = min(width/p_width, height/p_height)
             if scale != 1:
-                    surface.scale(scale, scale)
-            self.current_page.render(surface)
-
-
+                cr.scale(scale, scale)
+            self.current_page.render(cr)

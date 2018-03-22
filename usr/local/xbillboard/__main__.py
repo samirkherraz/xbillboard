@@ -3,39 +3,42 @@
 import ConfigParser
 import os
 import sys
+import gobject
+gobject.threads_init()
+
 from Screen import Screen
 from Sync import Sync
-import gi
-from threading import Lock
-gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, Gdk, GObject
+
+import gtk
 
 
-class Loader(Gtk.ApplicationWindow):
-   
+class Loader(gtk.Window):
+
     def initConfig(self, filename):
 
-        self.config = ConfigParser.RawConfigParser()
-        self.config.read(filename)
-        self.dataDir = self.config.get('General', 'DataDir')
-        self.screenDelay = self.config.get('General', 'ScreenDelay')
-        self.syncDelay = self.config.get('General', 'SyncDelay')
-        self.activeScreen = self.config.get(
-            'General', 'ActiveScreen').splitlines()
-        self.layoutx = self.config.getint('General', 'LayoutX')
-        self.layouty = self.config.getint('General', 'LayoutY')
+        try:
+            self.config = ConfigParser.RawConfigParser()
+            self.config.read(filename)
+            self.dataDir = self.config.get('General', 'DataDir')
+            self.screenDelay = self.config.get('General', 'ScreenDelay')
+            self.syncDelay = self.config.get('General', 'SyncDelay')
+            self.activeScreen = self.config.get(
+                'General', 'ActiveScreen').splitlines()
+            self.layoutx = self.config.getint('General', 'LayoutX')
+            self.layouty = self.config.getint('General', 'LayoutY')
+        except:
+            raise Exception('invalid configuration file')
 
     def configCheck(self):
-
         return len(self.activeScreen) == self.layoutx*self.layouty
 
     def prepare(self):
-        vBox = Gtk.VBox(spacing=0)
+        vBox = gtk.VBox(spacing=0)
         for i in range(self.layouty):
-            hBox = Gtk.HBox(spacing=0)
+            hBox = gtk.HBox(spacing=0)
             for j in range(self.layoutx):
-                canvas = Gtk.DrawingArea()
-                canvas.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(65535,65535,65535))
+                canvas = gtk.DrawingArea()
+                canvas.modify_bg(gtk.STATE_NORMAL, gtk.gdk.Color("#ffffff"))
                 hBox.add(canvas)
                 sc = self.activeScreen[self.layouty*i+j]
                 isCopy = None
@@ -50,18 +53,22 @@ class Loader(Gtk.ApplicationWindow):
                         os.stat(Dir)
                     except:
                         os.mkdir(Dir)
-                    fileList = self.config.get(sc, 'FileList').splitlines()
-                    for f in fileList:
-                        self.Syncs.append(Sync(f, Dir, self.syncDelay))
+
+                    try:
+                        fileList = self.config.get(sc, 'FileList').splitlines()
+                        for f in fileList:
+                            self.Syncs.append(Sync(f, Dir, self.syncDelay))
+                    except:
+                        pass
 
                 try:
                     delay = self.config.get(sc, "Delay")
-                    screen = Screen(self,canvas,delay, Dir)
+                    screen = Screen(self, canvas, delay, Dir)
                 except:
-                    screen = Screen(self,canvas,self.screenDelay, Dir)
+                    screen = Screen(self, canvas, self.screenDelay, Dir)
 
                 self.Screens.append(screen)
-                canvas.connect("draw", screen.on_expose)
+                canvas.connect("expose-event", screen.on_expose)
 
             vBox.add(hBox)
         self.add(vBox)
@@ -84,28 +91,25 @@ class Loader(Gtk.ApplicationWindow):
             s.join()
         for s in self.Syncs:
             s.join()
-   
 
-
-    def render(self,canvas, surface, document):
+    def render(self, canvas, surface, document):
         if document != None:
             p_width, p_height = document.get_size()
             width = canvas.get_allocation().width
-            height= canvas.get_allocation().height
+            height = canvas.get_allocation().height
             scale = min(width/p_width, height/p_height)
             if scale != 1:
-                    surface.scale(scale, scale)
+                surface.scale(scale, scale)
             document.render(surface)
 
-
-
     def __init__(self, config):
-        Gtk.Window.__init__(self, title="XBillBoard")
-        sc = Gdk.Screen.get_default()
+        gtk.Window.__init__(self)
+        self.set_title("XBillBoard")
         self.move(0, 0)
-        self.set_default_size(sc.get_width(), sc.get_height())
-        self.set_decorated(False)       
-        self.connect("delete_event", Gtk.main_quit)
+        self.set_default_size(self.get_screen().get_width(),
+                              self.get_screen().get_height())
+        # self.set_decorated(False)
+        self.connect("delete_event", gtk.main_quit)
         self.connect("key-press-event", self.on_key_release)
 
         self.Syncs = []
@@ -117,8 +121,7 @@ class Loader(Gtk.ApplicationWindow):
         self.activeScreen = None
         self.layoutx = None
         self.layouty = None
-        
-        
+
         self.initConfig(config)
 
         if self.configCheck():
@@ -129,16 +132,15 @@ class Loader(Gtk.ApplicationWindow):
             raise Exception('A very specific bad thing happened.')
 
     def on_key_release(self, widget, ev, data=None):
-        if ev.keyval == Gdk.KEY_Escape:  
-            Gtk.main_quit()   
+        if gtk.gdk.keyval_name(ev.keyval) == "Escape":
+            gtk.main_quit()
 
 
 if __name__ == '__main__':
-    Gdk.threads_init()
-    GObject.threads_init()
-    window = Loader(sys.argv[1])
-    Gtk.main()
+    try:
+        window = Loader(sys.argv[1])
+    except:
+        window = Loader("/etc/xbillboard.conf")
+    gtk.main()
     window.stop()
     window.join()
-
-    
