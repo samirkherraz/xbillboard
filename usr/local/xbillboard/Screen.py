@@ -30,8 +30,8 @@ class Screen(Thread):
     def auto_step(self):
         i = 0
         while i < self.n_pages :
-            Gdk.threads_enter()
             self.current_page = self.document.get_page(i)
+            Gdk.threads_enter()
             self.canvas.queue_draw()
             Gdk.threads_leave()
             i += 1

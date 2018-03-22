@@ -31,13 +31,13 @@ class Loader(Gtk.ApplicationWindow):
 
     def prepare(self):
         vBox = Gtk.VBox(spacing=0)
-        for i in range(self.layoutx):
+        for i in range(self.layouty):
             hBox = Gtk.HBox(spacing=0)
-            for j in range(self.layouty):
+            for j in range(self.layoutx):
                 canvas = Gtk.DrawingArea()
                 canvas.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(65535,65535,65535))
                 hBox.add(canvas)
-                sc = self.activeScreen[self.layoutx*i+j]
+                sc = self.activeScreen[self.layouty*i+j]
                 isCopy = None
                 Dir = None
                 try:
