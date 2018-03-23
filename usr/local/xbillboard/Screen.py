@@ -10,7 +10,19 @@ import gobject
 import poppler
 
 
+class FileType:
+    PDF = 1
+    IMAGE = 2
+    GIF = 3
+    NONE = 0
+    _PDF_LIST = [".PDF"]
+    _IMAGE_LIST = [".JPG", ".JPEG", ".PNG", ".SVG"]
+    _GIF_LIST = [".GIF"]
+
+
 class Screen(Thread):
+    LOGO = gtk.gdk.pixbuf_new_from_file(
+            os.path.dirname(os.path.realpath(__file__))+"/logo.svg")
 
     def __init__(self, parent, canvas, delay, filesFolder):
         Thread.__init__(self)
@@ -21,25 +33,74 @@ class Screen(Thread):
         self.n_pages = None
         self.pageNumber = 0
         self.current_page = None
+        self.current_type = FileType.NONE
         self.delay = float(delay)
+        self.logo = gtk.gdk.pixbuf_new_from_file(
+            os.path.dirname(os.path.realpath(__file__))+"/logo.svg")
 
-    def auto_step(self):
+    def loadFile(self, file):
+        _, file_extension = os.path.splitext(file)
+        ext = file_extension.upper()
+
+        try:
+            del self.document
+            del self.current_page
+        except:
+            pass
+        try:
+            if ext in FileType._PDF_LIST:
+                self.current_type = FileType.PDF
+                self.document = poppler.document_new_from_file(
+                    "file://"+file, None)
+                self.n_pages = self.document.get_n_pages()
+                self.current_page = self.document.get_page(0)
+            elif ext in FileType._IMAGE_LIST:
+                self.current_type = FileType.IMAGE
+                self.current_page = gtk.gdk.pixbuf_new_from_file(file)
+            elif ext in FileType._GIF_LIST:
+                self.current_type = FileType.GIF
+                self.document = gtk.gdk.PixbufAnimation(file).get_iter()
+                self.current_page = self.document.get_pixbuf()
+        except:
+            self.current_type = FileType.IMAGE
+            self.current_page = self.logo
+
+    def print_pdf(self):
         i = 0
         while i < self.n_pages and not self.stopped():
             self.current_page = self.document.get_page(i)
+            self.print_image()
             i += 1
-            gobject.idle_add(self.canvas.queue_draw)
-            self._stop.wait(self.delay)
 
-    def loadFile(self, file):
-        try:
-            self.document = poppler.document_new_from_file(
-                "file://"+file, None)
-            self.n_pages = self.document.get_n_pages()
-            self.current_page = self.document.get_page(0)
-            return True
-        except:
-            return False
+    def print_gif(self):
+        end = False
+        while not end and not self.stopped():
+            if not self.document.advance(current_time=0.0):
+                if  self.document.on_currently_loading_frame():
+                    end = True
+                    pass
+                else:
+                    pass
+            self.current_page = self.document.get_pixbuf()
+            if self.document.get_delay_time() != -1:
+                end = self.document.on_currently_loading_frame()
+                delay = float(self.document.get_delay_time())/100
+            else:
+                delay = self.delay
+                end = True
+            self.query_draw(delay, gobject.PRIORITY_HIGH)
+
+    def query_draw(self, delay, priority):
+        gobject.idle_add(self.canvas.queue_draw, priority=priority)
+        self._stop.wait(delay)
+
+    def print_image(self):
+        self.query_draw(self.delay, gobject.PRIORITY_LOW)
+
+    def print_logo(self):
+        self.current_page = Screen.LOGO
+        self.current_type = FileType.IMAGE
+        self.query_draw(self.delay, gobject.PRIORITY_LOW)
 
     def run(self):
         while not self.stopped():
@@ -47,29 +108,49 @@ class Screen(Thread):
                             for file in os.listdir(self.filesFolder)], key=os.path.getctime)
             if len(files) > 0:
                 for f in files:
-                    if self.loadFile(f):
-                        self.auto_step()
+                    self.loadFile(f)
+                    if self.current_type == FileType.PDF:
+                        self.print_pdf()
+                    elif self.current_type == FileType.IMAGE:
+                        self.print_image()
+                    elif self.current_type == FileType.GIF:
+                        self.print_gif()
+                    else:
+                        self.print_logo()
+
             else:
-                if self.loadFile("/usr/local/xbillboard/logo.pdf"):
-                    self.auto_step()
-                else:
-                    self._stop.wait(self.delay)
+                self.print_logo()
 
     def stop(self):
-        # gtk.gdk.threads_leave()
         self._stop.set()
 
     def stopped(self):
         return self._stop.isSet()
 
-    def on_expose(self, widget, surface):
+    def draw_image(self, area,):
+        pixbuf = self.current_page.scale_simple(
+            area.width, area.height, gtk.gdk.INTERP_NEAREST)
+        
+        self.canvas.window.draw_pixbuf(
+            None, pixbuf, 0, 0, 0, 0, area.width, area.height)
 
-        if self.current_page != None:
-            cr = widget.window.cairo_create()
-            p_width, p_height = self.current_page.get_size()
-            width = self.canvas.get_allocation().width
-            height = self.canvas.get_allocation().height
-            scale = min(width/p_width, height/p_height)
-            if scale != 1:
-                cr.scale(scale, scale)
-            self.current_page.render(cr)
+    def draw_pdf(self, area, cr):
+        p_width, p_height = self.current_page.get_size()
+        scale = min(area.width/p_width, area.height/p_height)
+        if scale != 1:
+            cr.scale(scale, scale)
+        self.current_page.render(cr)
+
+    def on_expose(self, widget, event):
+        cr = self.canvas.window.cairo_create()
+        cr.set_source_rgb(1, 1, 1)
+        cr.rectangle(0, 0, event.area.width, event.area.height)
+        cr.fill()
+        if self.current_type == FileType.PDF:
+            self.draw_pdf(event.area, cr)
+        elif self.current_type == FileType.IMAGE:
+            self.draw_image(event.area)
+        elif self.current_type == FileType.GIF:
+            self.draw_image(event.area)
+        else:
+            self.print_logo()

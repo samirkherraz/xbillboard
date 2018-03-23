@@ -5,12 +5,13 @@ import os
 import sys
 import gobject
 gobject.threads_init()
-
+import gtk
+gtk.gdk.threads_init()
+import gtk.gtkgl
+import signal
+signal.signal(signal.SIGINT, signal.SIG_DFL)
 from Screen import Screen
 from Sync import Sync
-
-import gtk
-import gtk.gtkgl
 
 
 class Loader(gtk.Window):
@@ -19,6 +20,8 @@ class Loader(gtk.Window):
         try:
             self.config = ConfigParser.RawConfigParser()
             self.config.read(filename)
+            self.opengl_use = bool(self.config.get('General', 'OpenGL').upper(
+            ) == "YES" or self.config.get('General', 'OpenGL').upper() == "TRUE")
             self.dataDir = self.config.get('General', 'DataDir')
             self.screenDelay = self.config.get('General', 'ScreenDelay')
             self.syncDelay = self.config.get('General', 'SyncDelay')
@@ -26,6 +29,23 @@ class Loader(gtk.Window):
                 'General', 'ActiveScreen').splitlines()
             self.layoutx = self.config.getint('General', 'LayoutX')
             self.layouty = self.config.getint('General', 'LayoutY')
+
+            print "CONFIGURATION \t\t:\t\t" + filename
+
+            print "OPENGL \t\t\t:\t\t" + str(self.opengl_use)
+
+            print "SCREEN DELAY \t\t:\t\t" + str(self.screenDelay)
+
+            print "SYNC DELAY \t\t:\t\t" + str(self.syncDelay)
+
+            print "DATA DIR FOR SYNC \t:\t\t" + str(self.dataDir)
+
+            print "ACTIVATED SCREENS \t:\t\t" + str(self.activeScreen)
+
+            print "NB SCREEN PER COL \t:\t\t" + str(self.layoutx)
+
+            print "NB SCREEN PER ROW \t:\t\t" + str(self.layouty)
+
         except:
             raise Exception('invalid configuration file')
 
@@ -37,8 +57,9 @@ class Loader(gtk.Window):
         for i in range(self.layouty):
             hBox = gtk.HBox(spacing=0)
             for j in range(self.layoutx):
-                if self.use_opengl:
-                    canvas = gtk.gtkgl.DrawingArea()
+                if self.opengl_use:
+                    canvas = gtk.gtkgl.DrawingArea(self.opengl_config)
+                    canvas.set_size_request(128, 128)
                 else:
                     canvas = gtk.DrawingArea()
                 canvas.modify_bg(gtk.STATE_NORMAL, gtk.gdk.Color("#ffffff"))
@@ -54,6 +75,7 @@ class Loader(gtk.Window):
                     Dir = self.dataDir+sc+"/"
                     try:
                         os.stat(Dir)
+                        os.system("rm "+Dir+"*")
                     except:
                         os.mkdir(Dir)
 
@@ -95,19 +117,11 @@ class Loader(gtk.Window):
         for s in self.Syncs:
             s.join()
 
-    def render(self, canvas, surface, document):
-        if document != None:
-            p_width, p_height = document.get_size()
-            width = canvas.get_allocation().width
-            height = canvas.get_allocation().height
-            scale = min(width/p_width, height/p_height)
-            if scale != 1:
-                surface.scale(scale, scale)
-            document.render(surface)
-
-    def __init__(self, config, opengl):
+    def __init__(self, config):
         gtk.Window.__init__(self)
-        self.use_opengl = opengl
+        self.opengl_use = False
+        self.opengl_config = gtk.gdkgl.Config(mode=(gtk.gdkgl.MODE_DOUBLE))
+
         self.set_title("XBillBoard")
         self.move(0, 0)
         self.set_default_size(self.get_screen().get_width(),
@@ -141,21 +155,14 @@ class Loader(gtk.Window):
 
 
 if __name__ == '__main__':
-    
     try:
-        configfile = sys.argv[1]
+        configfile = os.path.abspath(sys.argv[1])
     except:
-        configfile = "/etc/xbillboard.conf"
-    
-    try:
-        opengl = bool(sys.argv[2].upper() == "YES" or sys.argv[2].upper() == "TRUE")
-    except:
-        opengl = False
+        configfile = os.path.abspath("/etc/xbillboard.conf")
 
-    print "Config file : " + configfile
-    print "Using opengl : " + str(opengl)
-    
-    window = Loader(configfile, opengl)
+    window = Loader(configfile)
+    gtk.gdk.threads_enter()
     gtk.main()
+    gtk.gdk.threads_leave()
     window.stop()
     window.join()
