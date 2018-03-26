@@ -41,7 +41,6 @@ class Screen(Thread):
     def loadFile(self, file):
         _, file_extension = os.path.splitext(file)
         ext = file_extension.upper()
-
         try:
             del self.document
             del self.current_page
@@ -69,7 +68,7 @@ class Screen(Thread):
         i = 0
         while i < self.n_pages and not self.stopped():
             self.current_page = self.document.get_page(i)
-            self.print_image()
+            self.query_draw(self.delay, gobject.PRIORITY_LOW)
             i += 1
 
     def print_gif(self):
@@ -101,7 +100,7 @@ class Screen(Thread):
         self.current_page = Screen.LOGO
         self.current_type = FileType.IMAGE
         self.query_draw(self.delay, gobject.PRIORITY_LOW)
-
+   
     def run(self):
         while not self.stopped():
             files = sorted([os.path.join(self.filesFolder, file)
@@ -127,27 +126,29 @@ class Screen(Thread):
     def stopped(self):
         return self._stop.isSet()
 
-    def draw_image(self, area,):
+    def draw_image(self, area):
         pixbuf = self.current_page.scale_simple(
             area.width, area.height, gtk.gdk.INTERP_NEAREST)
         
         self.canvas.window.draw_pixbuf(
             None, pixbuf, 0, 0, 0, 0, area.width, area.height)
 
-    def draw_pdf(self, area, cr):
+    def draw_pdf(self, area):       
+        cr = self.canvas.window.cairo_create()
         p_width, p_height = self.current_page.get_size()
-        scale = min(area.width/p_width, area.height/p_height)
-        if scale != 1:
-            cr.scale(scale, scale)
+        cr.scale(area.width/p_width, area.height/p_height)
         self.current_page.render(cr)
 
-    def on_expose(self, widget, event):
+    def draw_white(self):
+        al = self.canvas.get_allocation()
         cr = self.canvas.window.cairo_create()
         cr.set_source_rgb(1, 1, 1)
-        cr.rectangle(0, 0, event.area.width, event.area.height)
+        cr.rectangle(0, 0, al[0], al[1])
         cr.fill()
+        
+    def on_expose(self, widget, event):
         if self.current_type == FileType.PDF:
-            self.draw_pdf(event.area, cr)
+            self.draw_pdf(event.area)
         elif self.current_type == FileType.IMAGE:
             self.draw_image(event.area)
         elif self.current_type == FileType.GIF:
