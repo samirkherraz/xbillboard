@@ -139,6 +139,7 @@ class Screen(Thread):
         cr.scale(area.width/p_width, area.height/p_height)
         self.current_page.render(cr)
 
+
     def draw_white(self):
         al = self.canvas.get_allocation()
         cr = self.canvas.window.cairo_create()
@@ -147,6 +148,7 @@ class Screen(Thread):
         cr.fill()
         
     def on_expose(self, widget, event):
+        self.canvas.window.begin_paint_rect(event.area)
         if self.current_type == FileType.PDF:
             self.draw_pdf(event.area)
         elif self.current_type == FileType.IMAGE:
@@ -155,3 +157,4 @@ class Screen(Thread):
             self.draw_image(event.area)
         else:
             self.print_logo()
+        self.canvas.window.end_paint()

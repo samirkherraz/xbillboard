@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# Disable Blank Screen
+
+xset s off
+xset -dpms
+xset s noblank
+
+# Disable Mouse
+
+unclutter -ilde 0.1 -root
+
+# Start Xbillboard
+
+/usr/bin/python /usr/local/xbillboard/

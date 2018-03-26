@@ -1,3 +1,4 @@
-#!/bin/bash 
+#!/bin/bash
+
 chmod +x /usr/local/xbillboard/__main__.py
-chmod +w /usr/local/xbillboard/
+chmod +x /usr/local/xbillboard/config.sh

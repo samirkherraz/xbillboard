@@ -156,11 +156,16 @@ class Loader(gtk.Window):
 
 
 if __name__ == '__main__':
+    user_config = os.getenv("HOME")+"/.xbillboard/xbillboard.conf"
+    global_config = os.path.abspath("/etc/xbillboard/xbillboard.conf")
     try:
-        configfile = os.path.abspath(sys.argv[1])
+        os.stat(user_config)
+        configfile = user_config
     except:
-        configfile = os.path.abspath("/etc/xbillboard.conf")
+        configfile = global_config
 
+    print user_config
+    print global_config
     window = Loader(configfile)
     gtk.gdk.threads_enter()
     gtk.main()
