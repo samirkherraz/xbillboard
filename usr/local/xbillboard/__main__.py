@@ -1,5 +1,11 @@
 #!/usr/bin/python
 
+__author__ = "Samir KHERRAZ"
+__license__ = "GPLv3"
+__version__ = "0.0.3"
+__maintainer__ = "Samir KHERRAZ"
+__email__ = "samir.kherraz@outlook.fr"
+__status__ = "Testing"
 
 import ConfigParser
 import os
@@ -16,6 +22,11 @@ from Sync import Sync
 
 
 class Loader(gtk.Window):
+
+    """
+    initConfig: 
+        initialize the program with the parameters defined in the configuration file
+    """
 
     def initConfig(self, filename):
         try:
@@ -50,8 +61,19 @@ class Loader(gtk.Window):
         except:
             raise Exception('invalid configuration file')
 
+    """
+    configCheck: 
+        this is just a function of checking the consistency of the parameters retrieved by initConfig
+    """
+
     def configCheck(self):
         return len(self.activeScreen) == self.layoutx*self.layouty
+
+    """
+    prepare:
+        This function allows the program to initialize, creating the GTK window, DrawingArea according to the configuration
+        it also prepares Screens and Syncs
+    """
 
     def prepare(self):
         vBox = gtk.VBox(spacing=0)
@@ -100,6 +122,8 @@ class Loader(gtk.Window):
         self.add(vBox)
         self.show_all()
 
+    
+    
     def start(self):
         for s in self.Screens:
             s.start()
@@ -148,7 +172,7 @@ class Loader(gtk.Window):
             self.start()
 
         else:
-            raise Exception('A very specific bad thing happened.')
+            raise Exception('The configuration file is invalid')
 
     def on_key_release(self, widget, ev, data=None):
         if gtk.gdk.keyval_name(ev.keyval) == "Escape":

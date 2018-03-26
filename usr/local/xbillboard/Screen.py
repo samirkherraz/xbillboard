@@ -1,5 +1,13 @@
 #!/usr/bin/python
 
+__author__ = "Samir KHERRAZ"
+__license__ = "GPLv3"
+__version__ = "0.0.3"
+__maintainer__ = "Samir KHERRAZ"
+__email__ = "samir.kherraz@outlook.fr"
+__status__ = "Testing"
+
+
 import os
 import sys
 
