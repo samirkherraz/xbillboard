@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+
 import ConfigParser
 import os
 import sys
@@ -75,7 +76,7 @@ class Loader(gtk.Window):
                     Dir = self.dataDir+sc+"/"
                     try:
                         os.stat(Dir)
-                        os.system("rm "+Dir+"*")
+                        #os.system("rm "+Dir+"*")
                     except:
                         os.mkdir(Dir)
 
