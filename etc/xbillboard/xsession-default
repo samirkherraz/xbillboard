@@ -1,5 +1,11 @@
 #!/bin/bash
 
+#####################################
+# DO NOT EDIT THIS BLOCK
+# XBILLBOARD AUTO GENERATED XSESSION
+#####################################
+
+
 # Disable Blank Screen
 
 xset s off

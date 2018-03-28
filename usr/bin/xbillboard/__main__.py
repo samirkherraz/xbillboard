@@ -24,7 +24,7 @@ from Sync import Sync
 class Loader(gtk.Window):
 
     """
-    initConfig: 
+    initConfig:
         initialize the program with the parameters defined in the configuration file
     """
 
@@ -62,7 +62,7 @@ class Loader(gtk.Window):
             raise Exception('invalid configuration file')
 
     """
-    configCheck: 
+    configCheck:
         this is just a function of checking the consistency of the parameters retrieved by initConfig
     """
 
@@ -79,6 +79,7 @@ class Loader(gtk.Window):
         vBox = gtk.VBox(spacing=0)
         for i in range(self.layouty):
             hBox = gtk.HBox(spacing=0)
+
             for j in range(self.layoutx):
                 if self.opengl_use:
                     canvas = gtk.gtkgl.DrawingArea(self.opengl_config)
@@ -98,7 +99,7 @@ class Loader(gtk.Window):
                     Dir = self.dataDir+sc+"/"
                     try:
                         os.stat(Dir)
-                        #os.system("rm "+Dir+"*")
+                        os.system("rm "+Dir+"*")
                     except:
                         os.mkdir(Dir)
 
@@ -111,9 +112,9 @@ class Loader(gtk.Window):
 
                 try:
                     delay = self.config.get(sc, "Delay")
-                    screen = Screen(self, canvas, delay, Dir)
+                    screen = Screen(canvas, delay, Dir)
                 except:
-                    screen = Screen(self, canvas, self.screenDelay, Dir)
+                    screen = Screen(canvas, self.screenDelay, Dir)
 
                 self.Screens.append(screen)
                 canvas.connect("expose-event", screen.on_expose)
@@ -122,8 +123,6 @@ class Loader(gtk.Window):
         self.add(vBox)
         self.show_all()
 
-    
-    
     def start(self):
         for s in self.Screens:
             s.start()
@@ -149,8 +148,11 @@ class Loader(gtk.Window):
 
         self.set_title("XBillBoard")
         self.move(0, 0)
-        self.set_default_size(self.get_screen().get_width(),
-                              self.get_screen().get_height())
+        # self.set_default_size(self.get_screen().get_width(),
+        #                      self.get_screen().get_height())
+        self.set_default_size(1024,
+                              500)
+
         # self.set_decorated(False)
         self.connect("delete_event", gtk.main_quit)
         self.connect("key-press-event", self.on_key_release)
@@ -188,8 +190,6 @@ if __name__ == '__main__':
     except:
         configfile = global_config
 
-    print user_config
-    print global_config
     window = Loader(configfile)
     gtk.gdk.threads_enter()
     gtk.main()

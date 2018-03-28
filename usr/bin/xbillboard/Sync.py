@@ -28,9 +28,6 @@ class Sync(Thread):
             os.system(self.cmd)
             self._stop.wait(self.delay)
 
-    def cleanUp(self):
-        os.system("rm -vf "+self.localdir+"*")
-
     def stopped(self):
         return self._stop.isSet()
 
