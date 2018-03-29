@@ -1,0 +1,12 @@
+Source: xbillboard
+Section: misc
+Priority: optional
+Maintainer: Samir KHERRAZ <samir.kherraz@outlook.fr>
+Build-Depends: debhelper (>=9)
+Standards-Version: 3.9.6
+Homepage: https://github.com/samirkherraz/xbillboard
+
+Package: xbillboard
+Architecture: all
+Depends:python, python-gtk2, python-gtkglext1, python-poppler, wget, xorg, lightdm, unclutter
+Description: Transforms your debian into a billboard

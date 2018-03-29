@@ -1,8 +1,0 @@
-Package: Xbillboard
-Version: 0.0.3
-Section: hidden 
-Depends: python,python-gtk2,python-gtkglext1,python-poppler,wget,xorg,lightdm, unclutter
-Architecture: all
-Installed-Size: 15Kb
-Maintainer: Samir KHERRRAZ <samir.kherraz@outlook.fr>
-Description: Transforms your debian into a billboard
