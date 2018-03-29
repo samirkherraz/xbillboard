@@ -148,12 +148,12 @@ class Loader(gtk.Window):
 
         self.set_title("XBillBoard")
         self.move(0, 0)
-        # self.set_default_size(self.get_screen().get_width(),
-        #                      self.get_screen().get_height())
-        self.set_default_size(1024,
-                              500)
+        self.set_default_size(self.get_screen().get_width(),
+                              self.get_screen().get_height())
+        # self.set_default_size(1024,
+        #                      500)
 
-        # self.set_decorated(False)
+        self.set_decorated(False)
         self.connect("delete_event", gtk.main_quit)
         self.connect("key-press-event", self.on_key_release)
 
