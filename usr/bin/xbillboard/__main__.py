@@ -2,10 +2,8 @@
 
 __author__ = "Samir KHERRAZ"
 __license__ = "GPLv3"
-__version__ = "0.0.3"
 __maintainer__ = "Samir KHERRAZ"
 __email__ = "samir.kherraz@outlook.fr"
-__status__ = "Testing"
 
 import ConfigParser
 import os
@@ -24,8 +22,7 @@ from Sync import Sync
 class Loader(gtk.Window):
 
     """
-    initConfig:
-        initialize the program with the parameters defined in the configuration file
+    initializes the settings from the configuration file
     """
 
     def initConfig(self, filename):
@@ -62,17 +59,14 @@ class Loader(gtk.Window):
             raise Exception('invalid configuration file')
 
     """
-    configCheck:
-        this is just a function of checking the consistency of the parameters retrieved by initConfig
+    test the consistency of the configuration file
     """
 
     def configCheck(self):
         return len(self.activeScreen) == self.layoutx*self.layouty
 
     """
-    prepare:
-        This function allows the program to initialize, creating the GTK window, DrawingArea according to the configuration
-        it also prepares Screens and Syncs
+    build the Gtk window
     """
 
     def prepare(self):
@@ -122,6 +116,9 @@ class Loader(gtk.Window):
             vBox.add(hBox)
         self.add(vBox)
         self.show_all()
+    """
+    launch round Robin on screens and file synchronization
+    """
 
     def start(self):
         for s in self.Screens:
@@ -129,11 +126,19 @@ class Loader(gtk.Window):
         for s in self.Syncs:
             s.start()
 
+    """
+    Stop Robin Round on screens and sync
+    """
+
     def stop(self):
         for s in self.Screens:
             s.stop()
         for s in self.Syncs:
             s.stop()
+
+    """
+    join the threads to wait for their complete stops
+    """
 
     def join(self):
         for s in self.Screens:

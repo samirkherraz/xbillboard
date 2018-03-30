@@ -1,11 +1,8 @@
 #!/usr/bin/python
-
 __author__ = "Samir KHERRAZ"
 __license__ = "GPLv3"
-__version__ = "0.0.3"
 __maintainer__ = "Samir KHERRAZ"
 __email__ = "samir.kherraz@outlook.fr"
-__status__ = "Testing"
 
 
 import os
@@ -54,8 +51,7 @@ class Screen(Thread):
         self.delay = float(delay)
 
     """
-    it determines the file type and then it loads it on self.document
-
+    loads the file into memory and defines the rendering procedure according to its type.
     """
 
     def load_file(self, file):
@@ -84,12 +80,20 @@ class Screen(Thread):
             self.current_type = FileType.IMAGE
             self.current_page = self.logo
 
+    """
+    prints all pages of the PDF one by one
+    """
+
     def print_pdf(self):
         i = 0
         while i < self.n_pages and not self.stopped():
             self.current_page = self.document.get_page(i)
             self.query_draw(self.delay, gobject.PRIORITY_LOW)
             i += 1
+
+    """
+    show the gif animation
+    """
 
     def print_gif(self):
         end = False
@@ -109,17 +113,33 @@ class Screen(Thread):
                 end = True
             self.query_draw(delay, gobject.PRIORITY_HIGH)
 
+    """
+    send an exposure signal to the gtk window for display and wait for a delay
+    """
+
     def query_draw(self, delay, priority):
         gobject.idle_add(self.canvas.queue_draw, priority=priority)
         self._stop.wait(delay)
 
+    """
+    prints the image on the screen
+    """
+
     def print_image(self):
         self.query_draw(self.delay, gobject.PRIORITY_LOW)
+
+    """
+    prints the logo on the screen
+    """
 
     def print_logo(self):
         self.current_page = Screen.LOGO
         self.current_type = FileType.IMAGE
         self.query_draw(self.delay, gobject.PRIORITY_LOW)
+
+    """
+    the main of the thread
+    """
 
     def run(self):
         while not self.stopped():
@@ -140,11 +160,23 @@ class Screen(Thread):
             else:
                 self.print_logo()
 
+    """
+    stop Robin round and leave the thread
+    """
+
     def stop(self):
         self._stop.set()
 
+    """
+    test if a stop is requested
+    """
+
     def stopped(self):
         return self._stop.isSet()
+
+    """
+    Allows you to calculate the size of the document to be printed according to the size of the screen
+    """
 
     def translate(self, p_width, p_height):
         ret = {}
@@ -160,6 +192,10 @@ class Screen(Thread):
 
         return ret
 
+    """
+    How to print an image on the screen
+    """
+
     def draw_image(self, area):
         translate = self.translate(
             self.current_page.get_width(), self.current_page.get_height())
@@ -168,6 +204,10 @@ class Screen(Thread):
         self.canvas.window.draw_pixbuf(
             None, pixbuf, 0, 0, translate["translate_x"], translate["translate_y"], translate["width"], translate["height"])
 
+    """
+    PDF screen printing procedure on screen
+    """
+
     def draw_pdf(self):
         cr = self.canvas.window.cairo_create()
         translate = self.translate(self.current_page.get_size()[
@@ -175,6 +215,10 @@ class Screen(Thread):
         cr.translate(translate["translate_x"], translate["translate_y"])
         cr.scale(translate["scale"], translate["scale"])
         self.current_page.render(cr)
+
+    """
+    a call the correct method depending on the file type
+    """
 
     def on_expose(self, widget, event):
         self.canvas.window.begin_paint_rect(event.area)
