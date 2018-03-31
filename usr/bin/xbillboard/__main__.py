@@ -19,111 +19,143 @@ from Screen import Screen
 from Sync import Sync
 
 
-class Loader(gtk.Window):
+class Boot(gtk.Window):
+
+    def _prepare(self):
+        self.opengl_config = gtk.gdkgl.Config(mode=(gtk.gdkgl.MODE_DOUBLE))
+
+        self.set_title("XBillBoard")
+        self.move(0, 0)
+        self.set_default_size(self.get_screen().get_width(),
+                              self.get_screen().get_height())
+        # self.set_decorated(False)
+        self.connect("delete_event", gtk.main_quit)
+        self.connect("key-press-event", self.on_key_release)
+
+    """
+    get config parametter and rise exception if error occured
+    """
+
+    def _config_get(self, userspace, key, exception=True):
+        try:
+            value = self.configuration.get(userspace, key)
+        except:
+            if exception == True:
+                raise Exception(
+                    'Configuration Error : '+userspace+"::"+key+" invalid")
+            else:
+                pass
+        return value
 
     """
     initializes the settings from the configuration file
     """
 
-    def initConfig(self, filename):
+    def _init_config(self):
         try:
-            self.config = ConfigParser.RawConfigParser()
-            self.config.read(filename)
-            self.opengl_use = bool(self.config.get('General', 'OpenGL').upper(
-            ) == "YES" or self.config.get('General', 'OpenGL').upper() == "TRUE")
-            self.dataDir = self.config.get('General', 'DataDir')
-            self.screenDelay = self.config.get('General', 'ScreenDelay')
-            self.syncDelay = self.config.get('General', 'SyncDelay')
-            self.activeScreen = self.config.get(
-                'General', 'ActiveScreen').splitlines()
-            self.layoutx = self.config.getint('General', 'LayoutX')
-            self.layouty = self.config.getint('General', 'LayoutY')
-
-            print "CONFIGURATION \t\t:\t\t" + filename
-
-            print "OPENGL \t\t\t:\t\t" + str(self.opengl_use)
-
-            print "SCREEN DELAY \t\t:\t\t" + str(self.screenDelay)
-
-            print "SYNC DELAY \t\t:\t\t" + str(self.syncDelay)
-
-            print "DATA DIR FOR SYNC \t:\t\t" + str(self.dataDir)
-
-            print "ACTIVATED SCREENS \t:\t\t" + str(self.activeScreen)
-
-            print "NB SCREEN PER COL \t:\t\t" + str(self.layoutx)
-
-            print "NB SCREEN PER ROW \t:\t\t" + str(self.layouty)
-
+            self.configuration = ConfigParser.RawConfigParser()
+            self.configuration.read(self.filename)
         except:
             raise Exception('invalid configuration file')
+
+        self.opengl_use = bool(self._config_get('General', 'OpenGL').upper(
+        ) == "YES" or self._config_get('General', 'OpenGL').upper() == "TRUE")
+        self.sync_directory = self._config_get('General', 'Sync_Directory')
+        self.sync_delay = self._config_get('General', 'SyncDelay')
+        self.screen_list = self._config_get(
+            'General', 'Screen_List').splitlines()
+        self.layout_x = int(self._config_get('General', 'LayoutX'))
+        self.layout_y = int(self._config_get('General', 'LayoutY'))
+        self.screen_delay = self._config_get('General', 'Screen_Delay')
+        self.screen_ratio = self._config_get('General', 'Screen_Ratio')
+        self.screen_align = self._config_get(
+            'General', 'Screen_Alignement')
 
     """
     test the consistency of the configuration file
     """
 
-    def configCheck(self):
-        return len(self.activeScreen) == self.layoutx*self.layouty
+    def _check_config(self):
+        return len(self.screen_list) == self.layout_x*self.layout_y
 
     """
     build the Gtk window
     """
 
-    def prepare(self):
-        vBox = gtk.VBox(spacing=0)
-        for i in range(self.layouty):
-            hBox = gtk.HBox(spacing=0)
+    def _create_canvas(self):
+        if self.opengl_use:
+            canvas = gtk.gtkgl.DrawingArea(self.opengl_config)
+            canvas.set_size_request(128, 128)
+        else:
+            canvas = gtk.DrawingArea()
+        canvas.modify_bg(gtk.STATE_NORMAL, gtk.gdk.Color("#ffffff"))
+        return canvas
 
-            for j in range(self.layoutx):
-                if self.opengl_use:
-                    canvas = gtk.gtkgl.DrawingArea(self.opengl_config)
-                    canvas.set_size_request(128, 128)
-                else:
-                    canvas = gtk.DrawingArea()
-                canvas.modify_bg(gtk.STATE_NORMAL, gtk.gdk.Color("#ffffff"))
-                hBox.add(canvas)
-                sc = self.activeScreen[self.layouty*i+j]
-                isCopy = None
-                Dir = None
+    def _prepare_dir(self, dir):
+        try:
+            os.stat(dir)
+            os.system("rm "+dir+"*")
+        except:
+            os.mkdir(dir)
+
+    def _create_vbox(self):
+        return gtk.VBox(spacing=0)
+
+    def _create_hbox(self):
+        return gtk.HBox(spacing=0)
+
+    def _build(self):
+        vBox = self._create_vbox()
+        for i in range(self.layout_y):
+            hBox = self._create_hbox()
+            for j in range(self.layout_x):
+                sc = self.screen_list[self.layout_y*i+j]
+                directory = None
                 try:
-                    isCopy = self.config.get(sc, "CopyOf")
-                    Dir = self.dataDir+isCopy+"/"
+                    isCopy = self._config_get(sc, "CopyOf")
+                    directory = self.sync_directory+isCopy+"/"
                 except:
-                    isCopy = None
-                    Dir = self.dataDir+sc+"/"
+                    directory = self.sync_directory+sc+"/"
+                    self._prepare_dir(directory)
                     try:
-                        os.stat(Dir)
-                        os.system("rm "+Dir+"*")
-                    except:
-                        os.mkdir(Dir)
-
-                    try:
-                        fileList = self.config.get(sc, 'FileList').splitlines()
+                        fileList = self._config_get(
+                            sc, 'FileList').splitlines()
                         for f in fileList:
-                            self.Syncs.append(Sync(f, Dir, self.syncDelay))
+                            self.sync_services.append(
+                                Sync(f, directory, self.sync_delay))
                     except:
                         pass
 
                 try:
-                    delay = self.config.get(sc, "Delay")
-                    screen = Screen(canvas, delay, Dir)
+                    align = self._config_get(sc, "Alignement")
                 except:
-                    screen = Screen(canvas, self.screenDelay, Dir)
+                    align = self.default_align
 
-                self.Screens.append(screen)
+                try:
+                    ratio = self._config_get(sc, "Ratio")
+                except:
+                    ratio = self.screen_ratio
+
+                canvas = self._create_canvas()
+                try:
+                    delay = self.configuration.get(sc, "Delay")
+                except:
+                    delay = self.screen_delay
+
+                screen = Screen(canvas, delay, directory, align, ratio)
+                self.screen_services.append(screen)
                 canvas.connect("expose-event", screen.on_expose)
-
+                hBox.add(canvas)
             vBox.add(hBox)
         self.add(vBox)
-        self.show_all()
     """
     launch round Robin on screens and file synchronization
     """
 
     def start(self):
-        for s in self.Screens:
+        for s in self.screen_services:
             s.start()
-        for s in self.Syncs:
+        for s in self.sync_services:
             s.start()
 
     """
@@ -131,9 +163,9 @@ class Loader(gtk.Window):
     """
 
     def stop(self):
-        for s in self.Screens:
+        for s in self.screen_services:
             s.stop()
-        for s in self.Syncs:
+        for s in self.sync_services:
             s.stop()
 
     """
@@ -141,43 +173,57 @@ class Loader(gtk.Window):
     """
 
     def join(self):
-        for s in self.Screens:
+        for s in self.screen_services:
             s.join()
-        for s in self.Syncs:
+        for s in self.sync_services:
             s.join()
+
+    def print_config(self):
+
+        print "CONFIGURATION \t\t:\t\t" + self.filename
+
+        print "OPENGL \t\t\t:\t\t" + str(self.opengl_use)
+
+        print "SCREEN DELAY \t\t:\t\t" + str(self.screen_delay)
+
+        print "SCREEN RATIO \t\t:\t\t" + str(self.screen_ratio)
+
+        print "SCREEN ALIGNEMENT \t\t:\t\t" + str(self.screen_align)
+
+        print "SYNC DELAY \t\t:\t\t" + str(self.sync_delay)
+
+        print "DATA DIR FOR SYNC \t:\t\t" + str(self.sync_directory)
+
+        print "ACTIVATED SCREENS \t:\t\t" + str(self.screen_list)
+
+        print "NB SCREEN PER COL \t:\t\t" + str(self.layout_x)
+
+        print "NB SCREEN PER ROW \t:\t\t" + str(self.layout_y)
 
     def __init__(self, config):
         gtk.Window.__init__(self)
+        self.opengl_config = None
         self.opengl_use = False
-        self.opengl_config = gtk.gdkgl.Config(mode=(gtk.gdkgl.MODE_DOUBLE))
+        self.sync_services = []
+        self.sync_delay = []
+        self.screen_services = []
+        self.screen_list = None
+        self.screen_delay = None
+        self.screen_ratio = None
+        self.screen_align = None
+        self.configuration = None
+        self.sync_directory = None
+        self.layout_x = None
+        self.layout_y = None
+        self.filename = config
+        self._init_config()
 
-        self.set_title("XBillBoard")
-        self.move(0, 0)
-        self.set_default_size(self.get_screen().get_width(),
-                              self.get_screen().get_height())
-        # self.set_default_size(1024,
-        #                      500)
-
-        self.set_decorated(False)
-        self.connect("delete_event", gtk.main_quit)
-        self.connect("key-press-event", self.on_key_release)
-
-        self.Syncs = []
-        self.Screens = []
-        self.config = None
-        self.dataDir = None
-        self.screenDelay = None
-        self.syncDelay = None
-        self.activeScreen = None
-        self.layoutx = None
-        self.layouty = None
-
-        self.initConfig(config)
-
-        if self.configCheck():
-            self.prepare()
+        if self._check_config():
+            self.print_config()
+            self._prepare()
+            self._build()
+            self.show_all()
             self.start()
-
         else:
             raise Exception('The configuration file is invalid')
 
@@ -187,17 +233,17 @@ class Loader(gtk.Window):
 
 
 if __name__ == '__main__':
-    user_config = os.getenv("HOME")+"/.xbillboard/xbillboard.conf"
-    global_config = os.path.abspath("/etc/xbillboard/xbillboard.conf")
+    userConfig = os.getenv("HOME")+"/.xbillboard/xbillboard.conf"
+    globalConfig = os.path.abspath("/etc/xbillboard/xbillboard.conf")
     try:
-        os.stat(user_config)
-        configfile = user_config
+        os.stat(userConfig)
+        configFile = userConfig
     except:
-        configfile = global_config
+        configFile = globalConfig
 
-    window = Loader(configfile)
+    mainBoot = Boot(configFile)
     gtk.gdk.threads_enter()
     gtk.main()
     gtk.gdk.threads_leave()
-    window.stop()
-    window.join()
+    mainBoot.stop()
+    mainBoot.join()

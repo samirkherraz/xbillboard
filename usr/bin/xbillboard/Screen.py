@@ -20,17 +20,53 @@ FileType class is used to identify what is the type of the file the program is
 """
 
 
-class FileType:
-    PDF = 1
-    IMAGE = 2
-    GIF = 3
-    NONE = 0
-    _PDF_LIST = [".PDF"]
-    _IMAGE_LIST = [".JPG", ".JPEG", ".PNG", ".SVG"]
-    _GIF_LIST = [".GIF"]
-
-
 class Screen(Thread):
+
+    class FileType:
+        PDF = 1
+        IMAGE = 2
+        GIF = 3
+        NONE = 0
+        _PDF_LIST = [".PDF"]
+        _IMAGE_LIST = [".JPG", ".JPEG", ".PNG", ".SVG"]
+        _GIF_LIST = [".GIF"]
+
+    class Ratio:
+        STRETCH = 1
+        FIT = 2
+
+        def get(self, str):
+            str = str.upper()
+            if str == "STRETCH":
+                return self.STRETCH
+            else:
+                return self.FIT
+
+    class Alignement:
+        LEFT = 1
+        RIGHT = 2
+        TOP = 3
+        DOWN = 4
+        CENTER = 5
+
+        def get(self, str):
+            r = {}
+            str = str.upper().split("::")
+            if str[1] == "LEFT":
+                r["Horizental"] = self.LEFT
+            elif str[1] == "RIGHT":
+                r["Horizental"] = self.RIGHT
+            else:
+                r["Horizental"] = self.CENTER
+            if str[0] == "TOP":
+                r["Vertical"] = self.TOP
+            elif str[0] == "DOWN":
+                r["Vertical"] = self.DOWN
+            else:
+                r["Vertical"] = self.CENTER
+
+            return r
+
     """
     Loading the logo pixel buffer once for optimization
     it is showed if errors occured
@@ -38,7 +74,7 @@ class Screen(Thread):
     LOGO = gtk.gdk.pixbuf_new_from_file(os.path.abspath(
         "/usr/share/backgrounds/xbillboard.svg"))
 
-    def __init__(self, canvas, delay, filesFolder):
+    def __init__(self, canvas, delay, filesFolder, align, ratio):
         Thread.__init__(self)
         self._stop = threading.Event()
         self.canvas = canvas
@@ -47,8 +83,10 @@ class Screen(Thread):
         self.n_pages = None
         self.pageNumber = 0
         self.current_page = None
-        self.current_type = FileType.NONE
+        self.current_type = Screen.FileType.NONE
         self.delay = float(delay)
+        self.align = Screen.Alignement().get(align)
+        self.ratio = Screen.Ratio().get(ratio)
 
     """
     loads the file into memory and defines the rendering procedure according to its type.
@@ -63,22 +101,22 @@ class Screen(Thread):
         except:
             pass
         try:
-            if ext in FileType._PDF_LIST:
-                self.current_type = FileType.PDF
+            if ext in Screen.FileType._PDF_LIST:
+                self.current_type = Screen.FileType.PDF
                 self.document = poppler.document_new_from_file(
                     "file://"+file, None)
                 self.n_pages = self.document.get_n_pages()
                 self.current_page = self.document.get_page(0)
-            elif ext in FileType._IMAGE_LIST:
-                self.current_type = FileType.IMAGE
+            elif ext in Screen.FileType._IMAGE_LIST:
+                self.current_type = Screen.FileType.IMAGE
                 self.current_page = gtk.gdk.pixbuf_new_from_file(file)
-            elif ext in FileType._GIF_LIST:
-                self.current_type = FileType.GIF
+            elif ext in Screen.FileType._GIF_LIST:
+                self.current_type = Screen.FileType.GIF
                 self.document = gtk.gdk.PixbufAnimation(file).get_iter()
                 self.current_page = self.document.get_pixbuf()
         except:
-            self.current_type = FileType.IMAGE
-            self.current_page = self.logo
+            self.current_type = Screen.FileType.IMAGE
+            self.current_page = Screen.LOGO
 
     """
     prints all pages of the PDF one by one
@@ -134,7 +172,7 @@ class Screen(Thread):
 
     def print_logo(self):
         self.current_page = Screen.LOGO
-        self.current_type = FileType.IMAGE
+        self.current_type = Screen.FileType.IMAGE
         self.query_draw(self.delay, gobject.PRIORITY_LOW)
 
     """
@@ -148,11 +186,11 @@ class Screen(Thread):
             if len(files) > 0:
                 for f in files:
                     self.load_file(f)
-                    if self.current_type == FileType.PDF:
+                    if self.current_type == Screen.FileType.PDF:
                         self.print_pdf()
-                    elif self.current_type == FileType.IMAGE:
+                    elif self.current_type == Screen.FileType.IMAGE:
                         self.print_image()
-                    elif self.current_type == FileType.GIF:
+                    elif self.current_type == Screen.FileType.GIF:
                         self.print_gif()
                     else:
                         self.print_logo()
@@ -184,11 +222,29 @@ class Screen(Thread):
         h = self.canvas.allocation.height
         scale_w = float(w)/float(p_width)
         scale_h = float(h)/float(p_height)
-        ret["scale"] = (min(scale_h, scale_w))
-        ret["width"] = int(p_width*ret["scale"])
-        ret["height"] = int(p_height*ret["scale"])
-        ret["translate_x"] = int(w/2-ret["width"]/2)
-        ret["translate_y"] = int(h/2-ret["height"]/2)
+
+        if self.ratio == Screen.Ratio.STRETCH:
+            ret["scale_w"] = scale_w
+            ret["scale_h"] = scale_h
+        else:
+            ret["scale_w"] = (min(scale_h, scale_w))
+            ret["scale_h"] = (min(scale_h, scale_w))
+
+        ret["width"] = int(p_width*ret["scale_w"])
+        ret["height"] = int(p_height*ret["scale_h"])
+
+        if self.align["Horizental"] == Screen.Alignement.RIGHT:
+            ret["translate_x"] = int(w-ret["width"])
+        elif self.align["Horizental"] == Screen.Alignement.LEFT:
+            ret["translate_x"] = 0
+        else:
+            ret["translate_x"] = int(w/2-ret["width"]/2)
+        if self.align["Vertical"] == Screen.Alignement.TOP:
+            ret["translate_y"] = 0
+        elif self.align["Vertical"] == Screen.Alignement.DOWN:
+            ret["translate_y"] = int(h-ret["height"])
+        else:
+            ret["translate_y"] = int(h/2-ret["height"]/2)
 
         return ret
 
@@ -213,7 +269,7 @@ class Screen(Thread):
         translate = self.translate(self.current_page.get_size()[
             0], self.current_page.get_size()[1])
         cr.translate(translate["translate_x"], translate["translate_y"])
-        cr.scale(translate["scale"], translate["scale"])
+        cr.scale(translate["scale_w"], translate["scale_h"])
         self.current_page.render(cr)
 
     """
@@ -222,11 +278,11 @@ class Screen(Thread):
 
     def on_expose(self, widget, event):
         self.canvas.window.begin_paint_rect(event.area)
-        if self.current_type == FileType.PDF:
+        if self.current_type == Screen.FileType.PDF:
             self.draw_pdf()
-        elif self.current_type == FileType.IMAGE:
+        elif self.current_type == Screen.FileType.IMAGE:
             self.draw_image(event.area)
-        elif self.current_type == FileType.GIF:
+        elif self.current_type == Screen.FileType.GIF:
             self.draw_image(event.area)
         else:
             self.print_logo()
