@@ -61,7 +61,7 @@ class Boot(gtk.Window):
         self.opengl_use = bool(self._config_get('General', 'OpenGL').upper(
         ) == "YES" or self._config_get('General', 'OpenGL').upper() == "TRUE")
         self.sync_directory = self._config_get('General', 'Sync_Directory')
-        self.sync_delay = self._config_get('General', 'SyncDelay')
+        self.sync_delay = self._config_get('General', 'Sync_Delay')
         self.screen_list = self._config_get(
             'General', 'Screen_List').splitlines()
         self.layout_x = int(self._config_get('General', 'LayoutX'))
