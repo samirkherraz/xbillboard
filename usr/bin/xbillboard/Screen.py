@@ -162,7 +162,7 @@ class Screen(Thread):
             else:
                 delay = self.delay
                 end = True
-            self.query_draw(delay, gobject.PRIORITY_HIGH)
+            self.query_draw(delay, gobject.PRIORITY_LOW)
 
     """
     send an exposure signal to the gtk window for display and wait for a delay
@@ -222,12 +222,12 @@ class Screen(Thread):
                     self.print_hour()
                 else:
                     self.print_logo()
-            if rotat >= self.rotation:
+            if rotat < self.rotation:
+                rotat += 1
+            else:
                 self._ended.set()
                 self.pause()
                 rotat = 0
-            else:
-                rotat += 1
 
     """
     stop Robin round and leave the thread

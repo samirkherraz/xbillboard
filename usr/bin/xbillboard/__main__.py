@@ -30,7 +30,7 @@ class Permute(Thread):
         self.inactive = secondary
         self.current = 0
         self.container = container
-        self.container.connect_after("expose-event", self.on_expose_end)
+        self.container.connect_after("switch-page", self.on_expose_end)
         self._on_expose_ended = threading.Event()
         self._on_expose_started = threading.Event()
         self._on_expose_ended.set()
@@ -51,6 +51,7 @@ class Permute(Thread):
             gobject.idle_add(self.container.set_current_page,
                              self.current, priority=gobject.PRIORITY_HIGH)
             self._on_expose_ended.wait()
+            self.container.show_all
             self.wait()
 
     def wait(self):
@@ -66,7 +67,7 @@ class Permute(Thread):
         self._on_expose_started.clear()
         self._on_expose_ended.set()
 
-    def on_expose_end(self, widget, event):
+    def on_expose_end(self, notebook, page, page_num):
         if self._on_expose_started.isSet():
             self._on_expose_started.clear()
             self._on_expose_ended.set()
@@ -81,11 +82,11 @@ class Boot(gtk.Window):
         self.move(0, 0)
         self.set_default_size(self.get_screen().get_width(),
                               self.get_screen().get_height())
-        # self.set_decorated(False)
+        self.set_decorated(False)
         self.connect("delete_event", gtk.main_quit)
         self.connect("key-press-event", self.on_key_release)
         self.notebook = gtk.Notebook()
-        # self.notebook.set_show_tabs(False)
+        self.notebook.set_show_tabs(False)
         self.notebook.set_show_border(False)
 
     """
@@ -215,14 +216,15 @@ class Boot(gtk.Window):
                 self.screen_services.append(screen)
                 hBox.add(canvas)
             vBox.add(hBox)
-        self.notebook.append_page(vBox, None)
+        self.notebook.append_page(vBox)
         self.add(self.notebook)
 
         canvas = self._create_canvas()
         screen = self._build_screen(self.screen_info, canvas, True)
         self.screen_info_service = screen
-        self.notebook.append_page(canvas, None)
-        self.permutation = Permute(self.notebook, self.screen_services,[self.screen_info_service])
+        self.notebook.append_page(canvas)
+        self.permutation = Permute(self.notebook, self.screen_services, [
+                                   self.screen_info_service])
     """
     launch round Robin on screens and file synchronization
     """
