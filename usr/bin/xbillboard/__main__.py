@@ -127,7 +127,7 @@ class Boot(gtk.Window):
             'General', 'Screen_List').splitlines()
         self.layout_x = int(self._config_get('General', 'LayoutX'))
         self.layout_y = int(self._config_get('General', 'LayoutY'))
-        self.screen_info = self._config_get('General', 'Screen_Info')
+        self.screen_info = self._config_get('General', 'Screen_Main')
         self.screen_delay = self._config_get('General', 'Screen_Delay')
         self.screen_ratio = self._config_get('General', 'Screen_Ratio')
         self.screen_rotation = self._config_get('General', 'Screen_Rotation')
