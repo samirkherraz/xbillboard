@@ -75,15 +75,18 @@ class Screen(Thread):
     LOGO = gtk.gdk.pixbuf_new_from_file(os.path.abspath(
         "/usr/share/backgrounds/xbillboard.svg"))
 
-    def __init__(self, canvas, delay, filesFolder, align, ratio, draw_hour=False):
+    def __init__(self, canvas, delay, filesFolder, align, ratio, rotation, draw_hour=False):
         Thread.__init__(self)
         self._pause = threading.Event()
-        self._on_expose_ended = threading.Event()
-        self._on_expose_started = threading.Event()
-        self.drawing_job = threading.Event()
         self._pause.set()
-        self.drawing_hour = draw_hour
+        self._ended = threading.Event()
         self._stop = threading.Event()
+        self._on_expose_ended = threading.Event()
+        self._on_expose_ended.set()
+        self._on_expose_started = threading.Event()
+        self.rotation = rotation
+        self.drawing_job = threading.Event()
+        self.drawing_hour = draw_hour
         self.canvas = canvas
         self.filesFolder = filesFolder
         self.document = None
@@ -94,7 +97,8 @@ class Screen(Thread):
         self.delay = float(delay)
         self.align = Screen.Alignement().get(align)
         self.ratio = Screen.Ratio().get(ratio)
-
+        self.canvas.connect("expose-event", self.on_expose)
+        self.canvas.connect_after("expose-event", self.on_expose_end)
     """
     loads the file into memory and defines the rendering procedure according to its type.
     """
@@ -163,14 +167,15 @@ class Screen(Thread):
     """
 
     def query_draw(self, delay, priority):
-        self._pause.wait()
         self.drawing_job.clear()
-        self._on_expose_started.set()
-        gobject.idle_add(self.canvas.queue_draw, priority=priority)
-        self._on_expose_ended.wait()
-        self._on_expose_ended.clear()
+        if not self.stopped():
+            self._pause.wait()
+            self._on_expose_started.set()
+            gobject.idle_add(self.canvas.queue_draw, priority=priority)
+            self._stop.wait(delay)
+            self._on_expose_ended.wait()
+            self._on_expose_ended.clear()
         self.drawing_job.set()
-        self._stop.wait(delay)
 
     """
     prints the image on the screen
@@ -197,7 +202,10 @@ class Screen(Thread):
     """
 
     def run(self):
+        rotat = 0
         while not self.stopped():
+            self._pause.wait()
+            self._ended.clear()
             files = sorted([os.path.join(self.filesFolder, file)
                             for file in os.listdir(self.filesFolder)], key=os.path.getctime)
             if len(files) > 0:
@@ -216,6 +224,13 @@ class Screen(Thread):
                     self.print_hour()
                 else:
                     self.print_logo()
+            rotat += 1
+            print rotat
+            print self.rotation
+            if rotat > self.rotation:
+                rotat = 0
+                self._ended.set()
+                self._pause.clear()
 
     """
     stop Robin round and leave the thread
@@ -223,9 +238,9 @@ class Screen(Thread):
 
     def stop(self):
         self._stop.set()
-        self.resume()
-        self._on_expose_started.clear()
         self._on_expose_ended.set()
+        self._ended.set()
+        self.resume()
 
     """
     test if a stop is requested
@@ -327,12 +342,15 @@ class Screen(Thread):
                 self.draw_image()
             else:
                 self.draw_hour()
-            self._on_expose_ended.set()
             self.canvas.window.end_paint()
+
+    def on_expose_end(self, widget, event):
+        self._on_expose_ended.set()
 
     def pause(self):
         self._pause.clear()
-        self.drawing_job.wait()
+        if self._on_expose_started.isSet():
+            self.drawing_job.wait()
 
     def resume(self):
         self._pause.set()

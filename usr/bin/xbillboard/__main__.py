@@ -23,14 +23,17 @@ import threading
 
 
 class Permute(Thread):
-    def __init__(self, container, main, secondary, delay):
+    def __init__(self, container, main, secondary):
         Thread.__init__(self)
         self._stop = threading.Event()
-        self.delay = float(delay)
         self.active = main
         self.inactive = secondary
         self.current = 0
         self.container = container
+        self.container.connect_after("expose-event", self.on_expose_end)
+        self._on_expose_ended = threading.Event()
+        self._on_expose_started = threading.Event()
+        self._on_expose_ended.set()
 
     def sc_pause(self, sc):
         for s in sc:
@@ -40,18 +43,7 @@ class Permute(Thread):
         for s in sc:
             s.resume()
 
-    def sc_start(self, sc):
-        for s in sc:
-            s.start()
-
-    def sc_stop(self, sc):
-        for s in sc:
-            s.stop()
-            s.join()
-
     def run(self):
-        self.sc_start(self.active)
-        self.sc_start(self.inactive)
         while not self.stopped():
             tmp = self.active
             self.active = self.inactive
@@ -59,18 +51,27 @@ class Permute(Thread):
             self.current = (self.current + 1) % 2
             self.sc_pause(self.inactive)
             self.sc_resume(self.active)
-            gtk.gdk.threads_enter()
-            self.container.set_current_page(self.current)
-            gtk.gdk.threads_leave()
-            self._stop.wait(self.delay)
+            self._on_expose_started.set()
+            gobject.idle_add(self.container.set_current_page,
+                             self.current, priority=gobject.PRIORITY_HIGH)
+            self.wait()
+
+    def wait(self):
+        for s in self.active:
+            s._ended.wait()
 
     def stopped(self):
         return self._stop.isSet()
 
     def stop(self):
-        self.sc_stop(self.inactive)
-        self.sc_stop(self.active)
         self._stop.set()
+        self._on_expose_started.clear()
+        self._on_expose_ended.set()
+
+    def on_expose_end(self, widget, event):
+        if self._on_expose_started.isSet():
+            self._on_expose_started.clear()
+            self._on_expose_ended.set()
 
 
 class Boot(gtk.Window):
@@ -126,6 +127,7 @@ class Boot(gtk.Window):
         self.screen_info = self._config_get('General', 'Screen_Info')
         self.screen_delay = self._config_get('General', 'Screen_Delay')
         self.screen_ratio = self._config_get('General', 'Screen_Ratio')
+        self.screen_rotation = self._config_get('General', 'Screen_Rotation')
         self.screen_align = self._config_get(
             'General', 'Screen_Alignement')
 
@@ -182,7 +184,7 @@ class Boot(gtk.Window):
         try:
             align = self._config_get(sc, "Alignement")
         except:
-            align = self.default_align
+            align = self.screen_align
 
         try:
             ratio = self._config_get(sc, "Ratio")
@@ -194,8 +196,13 @@ class Boot(gtk.Window):
         except:
             delay = self.screen_delay
 
-        screen = Screen(canvas, delay, directory, align, ratio, show_hour)
-        canvas.connect("expose-event", screen.on_expose)
+        try:
+            rotat = self._config_get(sc, "Rotation")
+        except:
+            rotat = self.screen_rotation
+
+        screen = Screen(canvas, delay, directory,
+                        align, ratio, rotat, show_hour)
         return screen
 
     def _build(self):
@@ -217,7 +224,7 @@ class Boot(gtk.Window):
         self.notebook.append_page(vBox, None)
         self.add(self.notebook)
         self.permutation = Permute(self.notebook, [self.screen_info_service],
-                                   self.screen_services, 2)
+                                   self.screen_services)
     """
     launch round Robin on screens and file synchronization
     """
@@ -225,6 +232,14 @@ class Boot(gtk.Window):
     def start(self):
         for s in self.sync_services:
             s.start()
+
+        for s in self.screen_services:
+            s.start()
+            s.pause()
+
+        self.screen_info_service.start()
+        self.screen_info_service.pause()
+
         self.permutation.start()
 
     """
@@ -232,11 +247,25 @@ class Boot(gtk.Window):
     """
 
     def stop(self):
+
+        for s in self.screen_services:
+            s.stop()
+            s.join()
+        print "STOP SCREENS"
+
+        self.screen_info_service.stop()
+        self.screen_info_service.join()
+
+        print "STOP MAIN SCREEN"
+
+        self.permutation.stop()
+        self.permutation.join()
+        print "STOP PERMUTATION"
+
         for s in self.sync_services:
             s.stop()
             s.join()
-        self.permutation.stop()
-        self.permutation.join()
+        print "STOP SYNCS"
 
     """
     join the threads to wait for their complete stops
