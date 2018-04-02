@@ -35,10 +35,6 @@ class Permute(Thread):
         self._on_expose_started = threading.Event()
         self._on_expose_ended.set()
 
-    def sc_pause(self, sc):
-        for s in sc:
-            s.pause()
-
     def sc_resume(self, sc):
         for s in sc:
             s.resume()
@@ -49,16 +45,18 @@ class Permute(Thread):
             self.active = self.inactive
             self.inactive = tmp
             self.current = (self.current + 1) % 2
-            self.sc_pause(self.inactive)
             self.sc_resume(self.active)
             self._on_expose_started.set()
+            self._on_expose_ended.clear()
             gobject.idle_add(self.container.set_current_page,
                              self.current, priority=gobject.PRIORITY_HIGH)
+            self._on_expose_ended.wait()
             self.wait()
 
     def wait(self):
         for s in self.active:
-            s._ended.wait()
+            s.wait()
+        print "End Waiting "
 
     def stopped(self):
         return self._stop.isSet()
@@ -207,10 +205,6 @@ class Boot(gtk.Window):
 
     def _build(self):
         vBox = self._create_vbox()
-        canvas = self._create_canvas()
-        screen = self._build_screen(self.screen_info, canvas, True)
-        self.screen_info_service = screen
-        self.notebook.append_page(canvas, None)
 
         for i in range(self.layout_y):
             hBox = self._create_hbox()
@@ -223,22 +217,27 @@ class Boot(gtk.Window):
             vBox.add(hBox)
         self.notebook.append_page(vBox, None)
         self.add(self.notebook)
-        self.permutation = Permute(self.notebook, [self.screen_info_service],
-                                   self.screen_services)
+
+        canvas = self._create_canvas()
+        screen = self._build_screen(self.screen_info, canvas, True)
+        self.screen_info_service = screen
+        self.notebook.append_page(canvas, None)
+        self.permutation = Permute(self.notebook, self.screen_services,[self.screen_info_service])
     """
     launch round Robin on screens and file synchronization
     """
 
     def start(self):
+
         for s in self.sync_services:
             s.start()
 
         for s in self.screen_services:
-            s.start()
             s.pause()
+            s.start()
 
-        self.screen_info_service.start()
         self.screen_info_service.pause()
+        self.screen_info_service.start()
 
         self.permutation.start()
 

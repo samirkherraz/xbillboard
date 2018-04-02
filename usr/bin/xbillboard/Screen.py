@@ -80,11 +80,13 @@ class Screen(Thread):
         self._pause = threading.Event()
         self._pause.set()
         self._ended = threading.Event()
+        self._ended.clear()
         self._stop = threading.Event()
         self._on_expose_ended = threading.Event()
         self._on_expose_ended.set()
         self._on_expose_started = threading.Event()
-        self.rotation = rotation
+
+        self.rotation = int(rotation)
         self.drawing_job = threading.Event()
         self.drawing_hour = draw_hour
         self.canvas = canvas
@@ -167,15 +169,12 @@ class Screen(Thread):
     """
 
     def query_draw(self, delay, priority):
-        self.drawing_job.clear()
         if not self.stopped():
-            self._pause.wait()
             self._on_expose_started.set()
-            gobject.idle_add(self.canvas.queue_draw, priority=priority)
-            self._stop.wait(delay)
-            self._on_expose_ended.wait()
             self._on_expose_ended.clear()
-        self.drawing_job.set()
+            gobject.idle_add(self.canvas.queue_draw, priority=priority)
+            self._on_expose_ended.wait()
+            self._stop.wait(delay)
 
     """
     prints the image on the screen
@@ -205,7 +204,6 @@ class Screen(Thread):
         rotat = 0
         while not self.stopped():
             self._pause.wait()
-            self._ended.clear()
             files = sorted([os.path.join(self.filesFolder, file)
                             for file in os.listdir(self.filesFolder)], key=os.path.getctime)
             if len(files) > 0:
@@ -224,22 +222,25 @@ class Screen(Thread):
                     self.print_hour()
                 else:
                     self.print_logo()
-            rotat += 1
-            print rotat
-            print self.rotation
-            if rotat > self.rotation:
-                rotat = 0
+            if rotat >= self.rotation:
                 self._ended.set()
-                self._pause.clear()
+                self.pause()
+                rotat = 0
+            else:
+                rotat += 1
 
     """
     stop Robin round and leave the thread
     """
 
+    def wait(self):
+        self._ended.wait()
+        self._ended.clear()
+
     def stop(self):
         self._stop.set()
-        self._on_expose_ended.set()
         self._ended.set()
+        self._on_expose_ended.set()
         self.resume()
 
     """
@@ -333,7 +334,6 @@ class Screen(Thread):
     def on_expose(self, widget, event):
         if self._on_expose_started.isSet():
             self.canvas.window.begin_paint_rect(event.area)
-            self._on_expose_started.clear()
             if self.current_type == Screen.FileType.PDF:
                 self.draw_pdf()
             elif self.current_type == Screen.FileType.IMAGE:
@@ -345,12 +345,12 @@ class Screen(Thread):
             self.canvas.window.end_paint()
 
     def on_expose_end(self, widget, event):
-        self._on_expose_ended.set()
+        if self._on_expose_started.isSet():
+            self._on_expose_started.clear()
+            self._on_expose_ended.set()
 
     def pause(self):
         self._pause.clear()
-        if self._on_expose_started.isSet():
-            self.drawing_job.wait()
 
     def resume(self):
         self._pause.set()
