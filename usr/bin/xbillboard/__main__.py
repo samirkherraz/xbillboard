@@ -17,6 +17,60 @@ import signal
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 from Screen import Screen
 from Sync import Sync
+import time
+from threading import Thread
+import threading
+
+
+class Permute(Thread):
+    def __init__(self, container, main, secondary, delay):
+        Thread.__init__(self)
+        self._stop = threading.Event()
+        self.delay = float(delay)
+        self.active = main
+        self.inactive = secondary
+        self.current = 0
+        self.container = container
+
+    def sc_pause(self, sc):
+        for s in sc:
+            s.pause()
+
+    def sc_resume(self, sc):
+        for s in sc:
+            s.resume()
+
+    def sc_start(self, sc):
+        for s in sc:
+            s.start()
+
+    def sc_stop(self, sc):
+        for s in sc:
+            s.stop()
+            s.join()
+
+    def run(self):
+        self.sc_start(self.active)
+        self.sc_start(self.inactive)
+        while not self.stopped():
+            tmp = self.active
+            self.active = self.inactive
+            self.inactive = tmp
+            self.current = (self.current + 1) % 2
+            self.sc_pause(self.inactive)
+            self.sc_resume(self.active)
+            gtk.gdk.threads_enter()
+            self.container.set_current_page(self.current)
+            gtk.gdk.threads_leave()
+            self._stop.wait(self.delay)
+
+    def stopped(self):
+        return self._stop.isSet()
+
+    def stop(self):
+        self.sc_stop(self.inactive)
+        self.sc_stop(self.active)
+        self._stop.set()
 
 
 class Boot(gtk.Window):
@@ -31,6 +85,9 @@ class Boot(gtk.Window):
         # self.set_decorated(False)
         self.connect("delete_event", gtk.main_quit)
         self.connect("key-press-event", self.on_key_release)
+        self.notebook = gtk.Notebook()
+        # self.notebook.set_show_tabs(False)
+        self.notebook.set_show_border(False)
 
     """
     get config parametter and rise exception if error occured
@@ -66,6 +123,7 @@ class Boot(gtk.Window):
             'General', 'Screen_List').splitlines()
         self.layout_x = int(self._config_get('General', 'LayoutX'))
         self.layout_y = int(self._config_get('General', 'LayoutY'))
+        self.screen_info = self._config_get('General', 'Screen_Info')
         self.screen_delay = self._config_get('General', 'Screen_Delay')
         self.screen_ratio = self._config_get('General', 'Screen_Ratio')
         self.screen_align = self._config_get(
@@ -104,79 +162,85 @@ class Boot(gtk.Window):
     def _create_hbox(self):
         return gtk.HBox(spacing=0)
 
+    def _build_screen(self, sc, canvas, show_hour=False):
+        directory = None
+        try:
+            isCopy = self._config_get(sc, "CopyOf")
+            directory = self.sync_directory+isCopy+"/"
+        except:
+            directory = self.sync_directory+sc+"/"
+            self._prepare_dir(directory)
+            try:
+                fileList = self._config_get(
+                    sc, 'FileList').splitlines()
+                for f in fileList:
+                    self.sync_services.append(
+                        Sync(f, directory, self.sync_delay))
+            except:
+                pass
+
+        try:
+            align = self._config_get(sc, "Alignement")
+        except:
+            align = self.default_align
+
+        try:
+            ratio = self._config_get(sc, "Ratio")
+        except:
+            ratio = self.screen_ratio
+
+        try:
+            delay = self.configuration.get(sc, "Delay")
+        except:
+            delay = self.screen_delay
+
+        screen = Screen(canvas, delay, directory, align, ratio, show_hour)
+        canvas.connect("expose-event", screen.on_expose)
+        return screen
+
     def _build(self):
         vBox = self._create_vbox()
+        canvas = self._create_canvas()
+        screen = self._build_screen(self.screen_info, canvas, True)
+        self.screen_info_service = screen
+        self.notebook.append_page(canvas, None)
+
         for i in range(self.layout_y):
             hBox = self._create_hbox()
             for j in range(self.layout_x):
                 sc = self.screen_list[self.layout_y*i+j]
-                directory = None
-                try:
-                    isCopy = self._config_get(sc, "CopyOf")
-                    directory = self.sync_directory+isCopy+"/"
-                except:
-                    directory = self.sync_directory+sc+"/"
-                    self._prepare_dir(directory)
-                    try:
-                        fileList = self._config_get(
-                            sc, 'FileList').splitlines()
-                        for f in fileList:
-                            self.sync_services.append(
-                                Sync(f, directory, self.sync_delay))
-                    except:
-                        pass
-
-                try:
-                    align = self._config_get(sc, "Alignement")
-                except:
-                    align = self.default_align
-
-                try:
-                    ratio = self._config_get(sc, "Ratio")
-                except:
-                    ratio = self.screen_ratio
-
                 canvas = self._create_canvas()
-                try:
-                    delay = self.configuration.get(sc, "Delay")
-                except:
-                    delay = self.screen_delay
-
-                screen = Screen(canvas, delay, directory, align, ratio)
+                screen = self._build_screen(sc, canvas)
                 self.screen_services.append(screen)
-                canvas.connect("expose-event", screen.on_expose)
                 hBox.add(canvas)
             vBox.add(hBox)
-        self.add(vBox)
+        self.notebook.append_page(vBox, None)
+        self.add(self.notebook)
+        self.permutation = Permute(self.notebook, [self.screen_info_service],
+                                   self.screen_services, 2)
     """
     launch round Robin on screens and file synchronization
     """
 
     def start(self):
-        for s in self.screen_services:
-            s.start()
         for s in self.sync_services:
             s.start()
+        self.permutation.start()
 
     """
     Stop Robin Round on screens and sync
     """
 
     def stop(self):
-        for s in self.screen_services:
-            s.stop()
         for s in self.sync_services:
             s.stop()
+            s.join()
+        self.permutation.stop()
+        self.permutation.join()
 
     """
     join the threads to wait for their complete stops
     """
-
-    def join(self):
-        for s in self.screen_services:
-            s.join()
-        for s in self.sync_services:
-            s.join()
 
     def print_config(self):
 
@@ -216,6 +280,7 @@ class Boot(gtk.Window):
         self.layout_x = None
         self.layout_y = None
         self.filename = config
+        self.notebook = None
         self._init_config()
 
         if self._check_config():
@@ -224,6 +289,7 @@ class Boot(gtk.Window):
             self._build()
             self.show_all()
             self.start()
+
         else:
             raise Exception('The configuration file is invalid')
 
@@ -246,4 +312,3 @@ if __name__ == '__main__':
     gtk.main()
     gtk.gdk.threads_leave()
     mainBoot.stop()
-    mainBoot.join()
