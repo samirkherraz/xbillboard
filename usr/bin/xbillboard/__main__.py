@@ -18,13 +18,14 @@ signal.signal(signal.SIGINT, signal.SIG_DFL)
 from Screen import Screen
 from Sync import Sync
 import time
-from threading import Thread
+from threading import Thread, Lock
 import threading
 
 
 class Permute(Thread):
     def __init__(self, container, main, secondary):
         Thread.__init__(self)
+        self._critical = Lock()
         self._stop = threading.Event()
         self.active = main
         self.inactive = secondary
@@ -35,9 +36,9 @@ class Permute(Thread):
         self._on_expose_started = threading.Event()
         self._on_expose_ended.set()
 
-    def sc_resume(self, sc):
-        for s in sc:
-            s.resume()
+    def reset(self):
+        for s in self.active:
+            s.reset()
 
     def run(self):
         while not self.stopped():
@@ -45,32 +46,35 @@ class Permute(Thread):
             self.active = self.inactive
             self.inactive = tmp
             self.current = (self.current + 1) % 2
-            self.sc_resume(self.active)
-            self._on_expose_started.set()
-            self._on_expose_ended.clear()
+            self.reset()
+            with self._critical:
+                self._on_expose_started.set()
+                self._on_expose_ended.clear()
             gobject.idle_add(self.container.set_current_page,
                              self.current, priority=gobject.PRIORITY_HIGH)
-            self._on_expose_ended.wait()
             self.container.show_all
+            self._on_expose_ended.wait()
+
             self.wait()
 
     def wait(self):
         for s in self.active:
             s.wait()
-        print "End Waiting "
 
     def stopped(self):
         return self._stop.isSet()
 
     def stop(self):
-        self._stop.set()
-        self._on_expose_started.clear()
-        self._on_expose_ended.set()
+        with self._critical:
+            self._stop.set()
+            self._on_expose_started.clear()
+            self._on_expose_ended.set()
 
     def on_expose_end(self, notebook, page, page_num):
         if self._on_expose_started.isSet():
-            self._on_expose_started.clear()
-            self._on_expose_ended.set()
+            with self._critical:
+                self._on_expose_started.clear()
+                self._on_expose_ended.set()
 
 
 class Boot(gtk.Window):
@@ -235,10 +239,8 @@ class Boot(gtk.Window):
             s.start()
 
         for s in self.screen_services:
-            s.pause()
             s.start()
 
-        self.screen_info_service.pause()
         self.screen_info_service.start()
 
         self.permutation.start()

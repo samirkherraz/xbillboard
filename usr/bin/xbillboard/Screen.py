@@ -9,7 +9,7 @@ import os
 import sys
 
 import threading
-from threading import Thread, RLock
+from threading import Thread, Lock
 import gtk
 import gobject
 import poppler
@@ -77,8 +77,9 @@ class Screen(Thread):
 
     def __init__(self, canvas, delay, filesFolder, align, ratio, rotation, draw_hour=False):
         Thread.__init__(self)
+        self._critical = Lock()
         self._pause = threading.Event()
-        self._pause.set()
+
         self._ended = threading.Event()
         self._ended.clear()
         self._stop = threading.Event()
@@ -170,8 +171,9 @@ class Screen(Thread):
 
     def query_draw(self, delay, priority):
         if not self.stopped():
-            self._on_expose_started.set()
-            self._on_expose_ended.clear()
+            with self._critical:
+                self._on_expose_started.set()
+                self._on_expose_ended.clear()
             gobject.idle_add(self.canvas.queue_draw, priority=priority)
             self._on_expose_ended.wait()
             self._stop.wait(delay)
@@ -225,8 +227,9 @@ class Screen(Thread):
             if rotat < self.rotation:
                 rotat += 1
             else:
-                self._ended.set()
-                self.pause()
+                with self._critical:
+                    self._ended.set()
+                    self._pause.clear()
                 rotat = 0
 
     """
@@ -235,13 +238,19 @@ class Screen(Thread):
 
     def wait(self):
         self._ended.wait()
-        self._ended.clear()
+        with self._critical:
+            self._ended.clear()
+
+    def reset(self):
+        with self._critical:
+            self._pause.set()
 
     def stop(self):
-        self._stop.set()
-        self._ended.set()
-        self._on_expose_ended.set()
-        self.resume()
+        with self._critical:
+            self._stop.set()
+            self._ended.set()
+            self._on_expose_ended.set()
+            self._pause.set()
 
     """
     test if a stop is requested
@@ -346,11 +355,6 @@ class Screen(Thread):
 
     def on_expose_end(self, widget, event):
         if self._on_expose_started.isSet():
-            self._on_expose_started.clear()
-            self._on_expose_ended.set()
-
-    def pause(self):
-        self._pause.clear()
-
-    def resume(self):
-        self._pause.set()
+            with self._critical:
+                self._on_expose_started.clear()
+                self._on_expose_ended.set()
