@@ -214,7 +214,7 @@ class Boot(gtk.Window):
         for i in range(self.layout_y):
             hBox = self._create_hbox()
             for j in range(self.layout_x):
-                sc = self.screen_list[self.layout_y*i+j]
+                sc = self.screen_list[self.layout_x*i+j]
                 canvas = self._create_canvas()
                 screen = self._build_screen(sc, canvas)
                 self.screen_services.append(screen)
