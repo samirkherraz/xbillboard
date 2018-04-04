@@ -43,7 +43,11 @@ Each instance will call wget every Delay seconds to check if the file has change
 
 ## Configuration `xbillboard.conf`
 
-The configuration file is duplicated during the installation and at each launch of the application if it does not exist. there is a default configuration file `/etc/xbillboard/xbillboard.conf` [never edit] the configuration file to handle is `$HOME/.xbillboard/xbillboard.conf`
+The configuration file is duplicated during the installation and at each launch of the application if it does not exist. 
+
+There is a default configuration file `/etc/xbillboard/xbillboard.conf` [default config]
+
+The configuration file to handle is `$HOME/.xbillboard/xbillboard.conf`
 
 
 | General ||
@@ -78,8 +82,8 @@ The configuration file is duplicated during the installation and at each launch 
 ##### Install :
 
 `sudo add-apt-repository ppa:samirkherraz/xbillboard-stable`  
-`sudo apt-get update`
-`sudo apt-get install xbillboard`
+`sudo apt-get update`   
+`sudo apt-get install xbillboard`   
 
 ##### Run :
 `xbillboard-start`
