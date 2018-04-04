@@ -317,11 +317,11 @@ class Screen(Thread):
 
         cr.rectangle(self.canvas.allocation.width/2 - width,
                      self.canvas.allocation.height/2 - height, 2*width, 2*height)
-        cr.set_source_rgb(0, 0, 0)
+        cr.set_source_rgb(1, 1, 1)
         cr.fill()
         cr.move_to(self.canvas.allocation.width/2 - width /
                    2, self.canvas.allocation.height/2 + height/2)
-        cr.set_source_rgb(1, 1, 1)
+        cr.set_source_rgb(0, 0, 0)
         cr.show_text(time)
     """
     PDF screen printing procedure on screen

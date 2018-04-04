@@ -151,7 +151,7 @@ class Boot(gtk.Window):
             canvas.set_size_request(128, 128)
         else:
             canvas = gtk.DrawingArea()
-        canvas.modify_bg(gtk.STATE_NORMAL, gtk.gdk.Color("#ffffff"))
+        canvas.modify_bg(gtk.STATE_NORMAL, gtk.gdk.Color("#000000"))
         return canvas
 
     def _prepare_dir(self, dir):
