@@ -90,7 +90,7 @@ The configuration file to handle is `$HOME/.xbillboard/xbillboard.conf`
 
 #### For others debian based distros you need to add this line into your sources.list file :
 
-`deb http://ppa.launchpad.net/samirkherraz/xbillboard-daily/ubuntu <code> main`
+`deb http://ppa.launchpad.net/samirkherraz/xbillboard-stable/ubuntu <code> main`
 
 replace \<code> with ubuntu equivalent of your debian
 
