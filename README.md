@@ -1,8 +1,9 @@
 
-# XBillBoard
+# [XBillBoard](http://www.samir-kherraz.tk/apps/xbillboard)
 
 A tool to transform your ubuntu/debian into a billboard
 
+[View in my blog](http://www.samir-kherraz.tk/apps/xbillboard)
 
 <center><img src="http://www.samir-kherraz.tk/public/uploads/xbillboard/xbillboard.svg" width="100%"/></center>
 
@@ -77,6 +78,8 @@ The configuration file to handle is `$HOME/.xbillboard/xbillboard.conf`
 
 
 ## Source and PPA Repository :
+
+[Launchpad](https://launchpad.net/xbillboard)
 
 #### For Ubuntu add xbillboard daily build ppa :
 ##### Install :
