@@ -5,6 +5,7 @@ __license__ = "GPLv3"
 __maintainer__ = "Samir KHERRAZ"
 __email__ = "samir.kherraz@outlook.fr"
 
+
 import threading
 from threading import Thread, Lock
 import time
@@ -12,14 +13,15 @@ from Sync import Sync
 from Screen import Screen
 from Cache import Cache
 import signal
-import gtk.gtkgl
-import gtk
-import ConfigParser
+from gi.repository import Gtk, Gdk, GObject
+import configparser
 import os
 import sys
-import gobject
-gobject.threads_init()
-gtk.gdk.threads_init()
+import logging
+LOGFORMAT = "%(asctime)s [%(levelname)s] %(threadName)s::%(module)s \n %(message)s"
+logging.basicConfig(
+    stream=sys.stdout, level=logging.DEBUG, format=LOGFORMAT)
+Gdk.threads_init()
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 
@@ -55,10 +57,10 @@ class Permute(Thread):
                 with self._critical:
                     self._on_expose_started.set()
                     self._on_expose_ended.clear()
-                gobject.idle_add(self.container.set_current_page,
-                                 self.current, priority=gobject.PRIORITY_HIGH)
-                gobject.idle_add(self.container.show_all,
-                                 priority=gobject.PRIORITY_HIGH)
+                GObject.idle_add(self.container.show_all,
+                                 priority=GObject.PRIORITY_HIGH)
+                GObject.idle_add(self.container.set_current_page,
+                                 self.current, priority=GObject.PRIORITY_LOW)
                 self._on_expose_ended.wait()
 
             self.reset()
@@ -84,19 +86,17 @@ class Permute(Thread):
                 self._on_expose_ended.set()
 
 
-class Boot(gtk.Window):
+class Boot(Gtk.Window):
 
     def _prepare(self):
-        self.opengl_config = gtk.gdkgl.Config(mode=(gtk.gdkgl.MODE_DOUBLE))
-
         self.set_title("XBillBoard")
         self.move(0, 0)
         self.set_default_size(self.get_screen().get_width(),
                               self.get_screen().get_height())
         self.set_decorated(False)
-        self.connect("delete_event", gtk.main_quit)
+        self.connect("delete_event", Gtk.main_quit)
         self.connect("key-press-event", self.on_key_release)
-        self.notebook = gtk.Notebook()
+        self.notebook = Gtk.Notebook()
         self.notebook.set_show_tabs(False)
         self.notebook.set_show_border(False)
 
@@ -121,7 +121,7 @@ class Boot(gtk.Window):
 
     def _init_config(self):
         try:
-            self.configuration = ConfigParser.RawConfigParser()
+            self.configuration = configparser.RawConfigParser()
             self.configuration.read(self.filename)
         except:
             raise Exception('invalid configuration file')
@@ -153,12 +153,8 @@ class Boot(gtk.Window):
     """
 
     def _create_canvas(self):
-        if self.opengl_use:
-            canvas = gtk.gtkgl.DrawingArea(self.opengl_config)
-            #canvas.set_size_request(128, 128)
-        else:
-            canvas = gtk.DrawingArea()
-        canvas.modify_bg(gtk.STATE_NORMAL, gtk.gdk.Color("#000000"))
+        canvas = Gtk.DrawingArea()
+        canvas.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(0, 0, 0))
         return canvas
 
     def _prepare_dir(self, dir):
@@ -169,10 +165,10 @@ class Boot(gtk.Window):
             os.mkdir(dir)
 
     def _create_vbox(self):
-        return gtk.VBox(spacing=0)
+        return Gtk.VBox(spacing=0)
 
     def _create_hbox(self):
-        return gtk.HBox(spacing=0)
+        return Gtk.HBox(spacing=0)
 
     def _build_screen(self,  sc, canvas, show_hour=False):
         directory = None
@@ -213,9 +209,9 @@ class Boot(gtk.Window):
         except:
             rotat = self.screen_rotation
 
-        t = Cache()
-        self.caches.append(t)
-        screen = Screen(t, canvas, delay, directory,
+        c = Cache()
+        self.caches.append(c)
+        screen = Screen(c, canvas, delay, directory,
                         align, ratio, rotat, show_hour)
         return screen
 
@@ -269,21 +265,21 @@ class Boot(gtk.Window):
         for s in self.screen_services:
             s.stop()
             s.join()
-        print "STOP SCREENS"
+        print("STOP SCREENS")
         if self.screen_info != "None":
             self.screen_info_service.stop()
             self.screen_info_service.join()
 
-        print "STOP MAIN SCREEN"
+        print("STOP MAIN SCREEN")
 
         self.permutation.stop()
         self.permutation.join()
-        print "STOP PERMUTATION"
+        print("STOP PERMUTATION")
 
         for s in self.sync_services:
             s.stop()
             s.join()
-        print "STOP SYNCS"
+        print("STOP SYNCS")
 
     """
     join the threads to wait for their complete stops
@@ -291,28 +287,28 @@ class Boot(gtk.Window):
 
     def print_config(self):
 
-        print "CONFIGURATION \t\t:\t\t" + self.filename
+        print("CONFIGURATION \t\t:\t\t" + self.filename)
 
-        print "OPENGL \t\t\t:\t\t" + str(self.opengl_use)
+        print("OPENGL \t\t\t:\t\t" + str(self.opengl_use))
 
-        print "SCREEN DELAY \t\t:\t\t" + str(self.screen_delay)
+        print("SCREEN DELAY \t\t:\t\t" + str(self.screen_delay))
 
-        print "SCREEN RATIO \t\t:\t\t" + str(self.screen_ratio)
+        print("SCREEN RATIO \t\t:\t\t" + str(self.screen_ratio))
 
-        print "SCREEN ALIGNEMENT \t\t:\t\t" + str(self.screen_align)
+        print("SCREEN ALIGNEMENT \t\t:\t\t" + str(self.screen_align))
 
-        print "SYNC DELAY \t\t:\t\t" + str(self.sync_delay)
+        print("SYNC DELAY \t\t:\t\t" + str(self.sync_delay))
 
-        print "DATA DIR FOR SYNC \t:\t\t" + str(self.sync_directory)
+        print("DATA DIR FOR SYNC \t:\t\t" + str(self.sync_directory))
 
-        print "ACTIVATED SCREENS \t:\t\t" + str(self.screen_list)
+        print("ACTIVATED SCREENS \t:\t\t" + str(self.screen_list))
 
-        print "NB SCREEN PER COL \t:\t\t" + str(self.layout_x)
+        print("NB SCREEN PER COL \t:\t\t" + str(self.layout_x))
 
-        print "NB SCREEN PER ROW \t:\t\t" + str(self.layout_y)
+        print("NB SCREEN PER ROW \t:\t\t" + str(self.layout_y))
 
     def __init__(self, config):
-        gtk.Window.__init__(self)
+        Gtk.Window.__init__(self)
         self.caches = []
         self.opengl_config = None
         self.opengl_use = False
@@ -343,8 +339,8 @@ class Boot(gtk.Window):
             raise Exception('The configuration file is invalid')
 
     def on_key_release(self, widget, ev, data=None):
-        if gtk.gdk.keyval_name(ev.keyval) == "Escape":
-            gtk.main_quit()
+        if Gdk.keyval_name(ev.keyval) == "Escape":
+            Gtk.main_quit()
 
 
 if __name__ == '__main__':
@@ -357,7 +353,7 @@ if __name__ == '__main__':
         configFile = globalConfig
 
     mainBoot = Boot(configFile)
-    gtk.gdk.threads_enter()
-    gtk.main()
-    gtk.gdk.threads_leave()
+
+    Gtk.main()
+
     mainBoot.stop()

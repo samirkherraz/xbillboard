@@ -15,6 +15,8 @@ class Sync(Thread):
     def __init__(self, caches, url, localdir, delay):
         Thread.__init__(self)
         self.caches = caches
+        self.name = url.split('/')[::-1][0]
+
         self._stop = threading.Event()
         self.name = url.split("/")[-1]
         self.delay = float(delay)
@@ -32,7 +34,7 @@ class Sync(Thread):
                     cache.clear(self.name)
                 self._stop.wait(self.delay)
             except:
-                print "sync error"
+                print("sync error")
 
     def stopped(self):
         return self._stop.isSet()
