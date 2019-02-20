@@ -6,4 +6,12 @@ echo "---------------------------------------------------------------"
 echo "---------------------------------------------------------------"
 echo "                            STARTUP"
 echo "---------------------------------------------------------------"
-/usr/bin/python /usr/bin/xbillboard/
+
+@xset s noblank
+@xset s off
+@xset -dpms
+unclutter -ilde 0.1 -root
+
+unset GTK_IM_MODULE
+
+/usr/bin/python2 /usr/bin/xbillboard/ >> ~/.xbillboard/run.log 2>&1

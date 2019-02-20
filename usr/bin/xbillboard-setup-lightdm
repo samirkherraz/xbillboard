@@ -1,0 +1,28 @@
+#!/bin/bash
+
+if (whoami != root)
+then 
+  echo "Please run as root"
+
+else 
+echo "What is the user for autologin ?"
+read username
+mv /etc/lightdm/lightdm.conf /etc/lightdm/lightdm.conf.backup
+echo -e "[LightDM]
+
+[Seat:*]
+greeter-session=pi-greeter
+greeter-hide-users=false
+autologin-user=$username
+autologin-user-timeout=0
+autologin-session=xbillboard
+xserver-command=X -s 0 dpms
+
+[XDMCPServer]
+
+[VNCServer]" > /etc/lightdm/lightdm.conf
+
+
+fi
+
+

@@ -1,34 +1,36 @@
-#!/usr/bin/python
+#!/usr/bin/python2
 
 __author__ = "Samir KHERRAZ"
 __license__ = "GPLv3"
 __maintainer__ = "Samir KHERRAZ"
 __email__ = "samir.kherraz@outlook.fr"
 
+import threading
+from threading import Thread, Lock
+import time
+from Sync import Sync
+from Screen import Screen
+from Cache import Cache
+import signal
+import gtk.gtkgl
+import gtk
 import ConfigParser
 import os
 import sys
 import gobject
 gobject.threads_init()
-import gtk
 gtk.gdk.threads_init()
-import gtk.gtkgl
-import signal
 signal.signal(signal.SIGINT, signal.SIG_DFL)
-from Screen import Screen
-from Sync import Sync
-import time
-from threading import Thread, Lock
-import threading
 
 
 class Permute(Thread):
-    def __init__(self, container, main, secondary):
+    def __init__(self, container, main, secondary=[]):
         Thread.__init__(self)
         self._critical = Lock()
         self._stop = threading.Event()
         self.active = main
         self.inactive = secondary
+        self.permutable = len(secondary) > 0
         self.current = 0
         self.container = container
         self.container.connect_after("switch-page", self.on_expose_end)
@@ -36,25 +38,30 @@ class Permute(Thread):
         self._on_expose_started = threading.Event()
         self._on_expose_ended.set()
 
+    def permute(self):
+        tmp = self.active
+        self.active = self.inactive
+        self.inactive = tmp
+        self.current = (self.current + 1) % 2
+
     def reset(self):
         for s in self.active:
             s.reset()
 
     def run(self):
         while not self.stopped():
-            tmp = self.active
-            self.active = self.inactive
-            self.inactive = tmp
-            self.current = (self.current + 1) % 2
-            self.reset()
-            with self._critical:
-                self._on_expose_started.set()
-                self._on_expose_ended.clear()
-            gobject.idle_add(self.container.set_current_page,
-                             self.current, priority=gobject.PRIORITY_HIGH)
-            self.container.show_all
-            self._on_expose_ended.wait()
+            if self.permutable:
+                self.permute()
+                with self._critical:
+                    self._on_expose_started.set()
+                    self._on_expose_ended.clear()
+                gobject.idle_add(self.container.set_current_page,
+                                 self.current, priority=gobject.PRIORITY_HIGH)
+                gobject.idle_add(self.container.show_all,
+                                 priority=gobject.PRIORITY_HIGH)
+                self._on_expose_ended.wait()
 
+            self.reset()
             self.wait()
 
     def wait(self):
@@ -148,7 +155,7 @@ class Boot(gtk.Window):
     def _create_canvas(self):
         if self.opengl_use:
             canvas = gtk.gtkgl.DrawingArea(self.opengl_config)
-            canvas.set_size_request(128, 128)
+            #canvas.set_size_request(128, 128)
         else:
             canvas = gtk.DrawingArea()
         canvas.modify_bg(gtk.STATE_NORMAL, gtk.gdk.Color("#000000"))
@@ -167,7 +174,7 @@ class Boot(gtk.Window):
     def _create_hbox(self):
         return gtk.HBox(spacing=0)
 
-    def _build_screen(self, sc, canvas, show_hour=False):
+    def _build_screen(self,  sc, canvas, show_hour=False):
         directory = None
         try:
             isCopy = self._config_get(sc, "CopyOf")
@@ -179,8 +186,10 @@ class Boot(gtk.Window):
                 fileList = self._config_get(
                     sc, 'FileList').splitlines()
                 for f in fileList:
-                    self.sync_services.append(
-                        Sync(f, directory, self.sync_delay))
+                    if f not in self.files_list:
+                        self.files_list.append(f)
+                        self.sync_services.append(
+                            Sync(self.caches, f, directory, self.sync_delay))
             except:
                 pass
 
@@ -204,7 +213,9 @@ class Boot(gtk.Window):
         except:
             rotat = self.screen_rotation
 
-        screen = Screen(canvas, delay, directory,
+        t = Cache()
+        self.caches.append(t)
+        screen = Screen(t, canvas, delay, directory,
                         align, ratio, rotat, show_hour)
         return screen
 
@@ -223,12 +234,15 @@ class Boot(gtk.Window):
         self.notebook.append_page(vBox)
         self.add(self.notebook)
 
-        canvas = self._create_canvas()
-        screen = self._build_screen(self.screen_info, canvas, True)
-        self.screen_info_service = screen
-        self.notebook.append_page(canvas)
-        self.permutation = Permute(self.notebook, self.screen_services, [
-                                   self.screen_info_service])
+        if self.screen_info != "None":
+            canvas = self._create_canvas()
+            screen = self._build_screen(self.screen_info, canvas, True)
+            self.screen_info_service = screen
+            self.notebook.append_page(canvas)
+            self.permutation = Permute(self.notebook, self.screen_services, [
+                self.screen_info_service])
+        else:
+            self.permutation = Permute(self.notebook, self.screen_services)
     """
     launch round Robin on screens and file synchronization
     """
@@ -241,7 +255,8 @@ class Boot(gtk.Window):
         for s in self.screen_services:
             s.start()
 
-        self.screen_info_service.start()
+        if self.screen_info != "None":
+            self.screen_info_service.start()
 
         self.permutation.start()
 
@@ -255,9 +270,9 @@ class Boot(gtk.Window):
             s.stop()
             s.join()
         print "STOP SCREENS"
-
-        self.screen_info_service.stop()
-        self.screen_info_service.join()
+        if self.screen_info != "None":
+            self.screen_info_service.stop()
+            self.screen_info_service.join()
 
         print "STOP MAIN SCREEN"
 
@@ -298,12 +313,14 @@ class Boot(gtk.Window):
 
     def __init__(self, config):
         gtk.Window.__init__(self)
+        self.caches = []
         self.opengl_config = None
         self.opengl_use = False
         self.sync_services = []
         self.sync_delay = []
         self.screen_services = []
         self.screen_list = None
+        self.files_list = []
         self.screen_delay = None
         self.screen_ratio = None
         self.screen_align = None

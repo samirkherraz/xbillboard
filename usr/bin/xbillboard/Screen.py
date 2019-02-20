@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python2
 __author__ = "Samir KHERRAZ"
 __license__ = "GPLv3"
 __maintainer__ = "Samir KHERRAZ"
@@ -27,6 +27,7 @@ class Screen(Thread):
         PDF = 1
         IMAGE = 2
         GIF = 3
+        HOUR = 4
         NONE = 0
         _PDF_LIST = [".PDF"]
         _IMAGE_LIST = [".JPG", ".JPEG", ".PNG", ".SVG"]
@@ -75,18 +76,19 @@ class Screen(Thread):
     LOGO = gtk.gdk.pixbuf_new_from_file(os.path.abspath(
         "/usr/share/backgrounds/xbillboard.svg"))
 
-    def __init__(self, canvas, delay, filesFolder, align, ratio, rotation, draw_hour=False):
+    def __init__(self, cache, canvas, delay, filesFolder, align, ratio, rotation, draw_hour=False):
         Thread.__init__(self)
+        self.cache = cache
+        self.filename = ""
         self._critical = Lock()
         self._pause = threading.Event()
-
+        self._fileready = threading.Event()
         self._ended = threading.Event()
         self._ended.clear()
         self._stop = threading.Event()
         self._on_expose_ended = threading.Event()
         self._on_expose_ended.set()
         self._on_expose_started = threading.Event()
-
         self.rotation = int(rotation)
         self.drawing_job = threading.Event()
         self.drawing_hour = draw_hour
@@ -108,30 +110,75 @@ class Screen(Thread):
 
     def load_file(self, file):
         _, file_extension = os.path.splitext(file)
+        self.filename = file.split('/')[::-1][0]
         ext = file_extension.upper()
-        try:
-            del self.document
-            del self.current_doc
-        except:
-            pass
-        try:
-            if ext in Screen.FileType._PDF_LIST:
-                self.current_type = Screen.FileType.PDF
-                self.document = poppler.document_new_from_file(
-                    "file://"+file, None)
-                self.n_pages = self.document.get_n_pages()
-                self.current_doc = self.document.get_page(0)
-            elif ext in Screen.FileType._IMAGE_LIST:
-                self.current_type = Screen.FileType.IMAGE
-                self.current_doc = gtk.gdk.pixbuf_new_from_file(file)
-            elif ext in Screen.FileType._GIF_LIST:
-                self.current_type = Screen.FileType.GIF
-                self.document = gtk.gdk.PixbufAnimation(file).get_iter()
-                self.current_doc = self.document.get_pixbuf()
-        except:
-            self.current_type = Screen.FileType.IMAGE
-            self.current_doc = Screen.LOGO
 
+        c = 0
+        try:
+            if ".sync_lock" in file:
+                return False
+            if os.path.isfile(file+".sync_lock"):
+                return False
+
+            if ext in Screen.FileType._PDF_LIST:
+                doc = self.cache.get(self.filename, "options")
+                if doc != None:
+                    self.current_type = doc["current_type"]
+                    self.document = doc["document"]
+                    self.n_pages = doc["n_pages"]
+                    self.current_doc = doc["current_doc"]
+                else:
+                    self.current_type = Screen.FileType.PDF
+                    self.document = poppler.document_new_from_file(
+                        "file://"+file, None)
+                    self.n_pages = self.document.get_n_pages()
+                    self.current_doc = self.document.get_page(0)
+                    self.cache.register(
+                        self.filename, "options", {
+                            "current_doc": self.current_doc,
+                            "document": self.document,
+                            "current_type": self.current_type,
+                            "n_pages": self.n_pages
+                        })
+
+            elif ext in Screen.FileType._IMAGE_LIST:
+                doc = self.cache.get(self.filename, "options")
+                if doc != None:
+                    self.current_type = doc["current_type"]
+                    self.current_doc = doc["current_doc"]
+                else:
+                    self.current_type = Screen.FileType.IMAGE
+                    self.current_doc = gtk.gdk.pixbuf_new_from_file(file)
+                    self.cache.register(
+                        self.filename, "options", {
+                            "current_doc": self.current_doc,
+                            "current_type": self.current_type
+                        })
+
+            elif ext in Screen.FileType._GIF_LIST:
+                doc = self.cache.get(self.filename, "options")
+                if doc != None:
+                    self.current_type = doc["current_type"]
+                    self.document = doc["document"]
+                    self.current_doc = doc["current_doc"]
+                    self.pageNumber = hash(self.current_doc)
+                else:
+                    self.current_type = Screen.FileType.GIF
+                    self.document = gtk.gdk.PixbufAnimation(file)
+                    self.current_doc = self.document.get_iter().get_pixbuf()
+                    self.pageNumber = hash(self.current_doc)
+                    self.cache.register(
+                        self.filename, "options", {
+                            "current_doc": self.current_doc,
+                            "document": self.document,
+                            "current_type": self.current_type
+                        })
+
+            else:
+                return False
+            return True
+        except:
+            return False
     """
     prints all pages of the PDF one by one
     """
@@ -140,6 +187,7 @@ class Screen(Thread):
         i = 0
         while i < self.n_pages and not self.stopped():
             self.current_doc = self.document.get_page(i)
+            self.pageNumber = hash(self.current_doc)
             self.query_draw(self.delay, gobject.PRIORITY_LOW)
             i += 1
 
@@ -148,22 +196,26 @@ class Screen(Thread):
     """
 
     def print_gif(self):
+        diter = self.document.get_iter()
         end = False
+        self.pageNumber = 0
         while not end and not self.stopped():
-            if not self.document.advance(current_time=0.0):
-                if self.document.on_currently_loading_frame():
+            if not diter.advance(current_time=0.0):
+                if diter.on_currently_loading_frame():
+                    self.pageNumber = 0
                     end = True
-                    pass
                 else:
-                    pass
-            self.current_doc = self.document.get_pixbuf()
-            if self.document.get_delay_time() != -1:
-                end = self.document.on_currently_loading_frame()
-                delay = float(self.document.get_delay_time())/1000
-            else:
-                delay = self.delay
-                end = True
-            self.query_draw(delay, gobject.PRIORITY_LOW)
+                    self.current_doc = diter.get_pixbuf()
+                    self.pageNumber += 1
+                    delay_time = diter.get_delay_time()
+                    if delay_time != -1:
+                        end = diter.on_currently_loading_frame()
+                        delay = float(delay_time)/float(1000)
+                    else:
+                        delay = self.delay
+                        self.pageNumber = 0
+                        end = True
+                    self.query_draw(delay, gobject.PRIORITY_LOW)
 
     """
     send an exposure signal to the gtk window for display and wait for a delay
@@ -174,7 +226,7 @@ class Screen(Thread):
             with self._critical:
                 self._on_expose_started.set()
                 self._on_expose_ended.clear()
-            gobject.idle_add(self.canvas.queue_draw, priority=priority)
+                gobject.idle_add(self.canvas.queue_draw, priority=priority)
             self._on_expose_ended.wait()
             self._stop.wait(delay)
 
@@ -186,7 +238,7 @@ class Screen(Thread):
         self.query_draw(self.delay, gobject.PRIORITY_LOW)
 
     def print_hour(self):
-        self.current_type = None
+        self.current_type = Screen.FileType.HOUR
         self.query_draw(self.delay, gobject.PRIORITY_LOW)
 
     """
@@ -206,24 +258,27 @@ class Screen(Thread):
         rotat = 0
         while not self.stopped():
             self._pause.wait()
-            files = sorted([os.path.join(self.filesFolder, file)
-                            for file in os.listdir(self.filesFolder)], key=os.path.getctime)
-            if len(files) > 0:
-                for f in files:
-                    self.load_file(f)
+            try:
+                files = sorted([os.path.join(self.filesFolder, file)
+                                for file in os.listdir(self.filesFolder)], key=os.path.getctime)
+            except:
+                print "error with "+str(files)
+                continue
+            found = False
+            for f in files:
+                if self.load_file(f):
                     if self.current_type == Screen.FileType.PDF:
                         self.print_pdf()
                     elif self.current_type == Screen.FileType.IMAGE:
                         self.print_image()
                     elif self.current_type == Screen.FileType.GIF:
                         self.print_gif()
-                    if self.drawing_hour:
-                        self.print_hour()
-            else:
-                if self.drawing_hour:
-                    self.print_hour()
-                else:
-                    self.print_logo()
+                    found = True
+            if self.drawing_hour:
+                self.print_hour()
+            elif not found:
+                self.print_logo()
+
             if rotat < self.rotation:
                 rotat += 1
             else:
@@ -243,7 +298,9 @@ class Screen(Thread):
 
     def reset(self):
         with self._critical:
+            self._ended.clear()
             self._pause.set()
+            self._on_expose_ended.set()
 
     def stop(self):
         with self._critical:
@@ -300,12 +357,24 @@ class Screen(Thread):
     """
 
     def draw_image(self):
-        translate = self.translate(
-            self.current_doc.get_width(), self.current_doc.get_height())
-        pixbuf = self.current_doc.scale_simple(
-            translate["width"], translate["height"], gtk.gdk.INTERP_BILINEAR)
-        self.canvas.window.draw_pixbuf(
-            None, pixbuf, 0, 0, translate["translate_x"], translate["translate_y"], translate["width"], translate["height"])
+        obj = self.cache.get(self.filename, self.pageNumber)
+        if obj is None:
+            translate = self.translate(
+                self.current_doc.get_width(), self.current_doc.get_height())
+            pixbuf = self.current_doc.scale_simple(
+                translate["width"], translate["height"], gtk.gdk.INTERP_BILINEAR)
+            self.cache.register(self.filename, self.pageNumber, {
+                "pixbuf": pixbuf, "translate": translate})
+        else:
+            translate = obj["translate"]
+            pixbuf = obj["pixbuf"]
+
+        cr = self.canvas.window.cairo_create()
+
+        cr.set_source_pixbuf(pixbuf, 0, 0)
+        cr.translate(translate["translate_x"], translate["translate_y"])
+        cr.scale(translate["scale_w"], translate["scale_h"])
+        cr.paint()
 
     def draw_hour(self):
         cr = self.canvas.window.cairo_create()
@@ -329,7 +398,6 @@ class Screen(Thread):
 
     def draw_pdf(self):
         cr = self.canvas.window.cairo_create()
-
         translate = self.translate(self.current_doc.get_size()[
             0], self.current_doc.get_size()[1])
         cr.translate(translate["translate_x"], translate["translate_y"])
@@ -343,14 +411,17 @@ class Screen(Thread):
     def on_expose(self, widget, event):
         if self._on_expose_started.isSet():
             self.canvas.window.begin_paint_rect(event.area)
-            if self.current_type == Screen.FileType.PDF:
-                self.draw_pdf()
-            elif self.current_type == Screen.FileType.IMAGE:
-                self.draw_image()
-            elif self.current_type == Screen.FileType.GIF:
-                self.draw_image()
-            else:
+            if self.current_doc != None:
+                if self.current_type == Screen.FileType.PDF:
+                    self.draw_pdf()
+                elif self.current_type == Screen.FileType.IMAGE:
+                    self.draw_image()
+                elif self.current_type == Screen.FileType.GIF:
+                    self.draw_image()
+            elif self.current_type == Screen.FileType.HOUR:
                 self.draw_hour()
+            else:
+                print "Error : None Type"
             self.canvas.window.end_paint()
 
     def on_expose_end(self, widget, event):

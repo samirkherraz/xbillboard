@@ -8,13 +8,6 @@ else
     echo -e "CREATE USER FOLDER\t:\t\tALREADY DONE"
 fi
 
-if [ ! -f $HOME/.Xsession  ]; then
-    cp /etc/xbillboard/xsession-default $HOME/.Xsession
-    echo -e "CREATE USER SESSION\t:\t\tSUCCESS"
-else
-    echo -e "CREATE USER SESSION\t:\t\tALREADY DONE"
-fi
-
 
 if [ ! -f $HOME/.xbillboard/xbillboard.conf  ]; then
     cp /etc/xbillboard/xbillboard.conf $HOME/.xbillboard/xbillboard.conf
