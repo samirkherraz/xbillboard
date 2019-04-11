@@ -1,17 +1,38 @@
 #!/bin/bash 
+if [ "$1" == "debug" ];
+then
+    root='usr/bin'
+else
+    root="/usr/bin"
+    @xset s noblank
+    @xset s off
+    @xset -dpms
+    unclutter -ilde 0.1 -root
+fi
 echo "---------------------------------------------------------------"
 echo "                      CONFIGURATION CHECK"
 echo "---------------------------------------------------------------"
-/usr/bin/xbillboard-configure
+$root/xbillboard-configure
 echo "---------------------------------------------------------------"
 echo "                            STARTUP"
 echo "---------------------------------------------------------------"
 
-@xset s noblank
-@xset s off
-@xset -dpms
-unclutter -ilde 0.1 -root
 
 unset GTK_IM_MODULE
+mv ~/.xbillboard.log ~/.xbillboard.last.log > /dev/null 2>&1
+if [ "$1" == "debug" ];
+then 
+    /usr/bin/python3 $root/xbillboard/ 
+else
+    while [ 1 == 1 ];
+    do
 
-/usr/bin/python3 /usr/bin/xbillboard/ >> ~/.xbillboard/run.log 2>&1
+
+            rm ~/.xbillboard/screens/* -R > /dev/null 2>&1
+            /usr/bin/python3 /usr/bin/xbillboard/ >> ~/.xbillboard.log 2>&1
+            mv ~/.xbillboard.log ~/.xbillboard.crash.log 
+            sleep 1
+        
+    done
+
+fi

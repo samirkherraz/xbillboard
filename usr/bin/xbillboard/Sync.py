@@ -17,7 +17,7 @@ class Sync(Thread):
         self.caches = caches
         self.name = url.split('/')[::-1][0]
 
-        self._stop = threading.Event()
+        self.__stop = threading.Event()
         self.name = url.split("/")[-1]
         self.delay = float(delay)
         self.url = url
@@ -32,15 +32,15 @@ class Sync(Thread):
                 os.remove(self.localdir+self.name+".sync_lock")
                 for cache in self.caches:
                     cache.clear(self.name)
-                self._stop.wait(self.delay)
+                self.__stop.wait(self.delay)
             except:
                 print("sync error")
 
     def stopped(self):
-        return self._stop.isSet()
+        return self.__stop.isSet()
 
     def wait(self):
-        self._ready.wait()
+        self.__ready.wait()
 
     def stop(self):
-        self._stop.set()
+        self.__stop.set()
