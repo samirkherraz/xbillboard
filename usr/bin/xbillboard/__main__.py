@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python3
 
 __author__ = "Samir KHERRAZ"
 __license__ = "GPLv3"
@@ -11,7 +11,6 @@ from threading import Thread, Lock
 import time
 from Sync import Sync
 from Screen import Screen
-from Cache import Cache
 import signal
 from gi.repository import Gtk, Gdk, GLib
 import configparser
@@ -21,7 +20,7 @@ import logging
 LOGFORMAT = "%(asctime)s [%(levelname)s] %(threadName)s::%(module)s \n %(message)s"
 logging.basicConfig(
     stream=sys.stdout, level=logging.DEBUG, format=LOGFORMAT)
-logging.disable(sys.maxsize)
+# logging.disable(sys.maxsize)
 
 Gdk.threads_init()
 signal.signal(signal.SIGINT, signal.SIG_DFL)
@@ -139,8 +138,7 @@ class Boot(Gtk.Window):
     """
 
     def __create_canvas(self):
-        canvas = Gtk.DrawingArea()
-        canvas.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(0, 0, 0))
+        canvas = Gtk.Image()
         return canvas
 
     def __prepare_dir(self, dir):
@@ -171,7 +169,7 @@ class Boot(Gtk.Window):
                     if f not in self.files_list:
                         self.files_list.append(f)
                         self.sync_services.append(
-                            Sync(self.caches, f, directory, self.sync_delay))
+                            Sync(f, directory, self.sync_delay))
             except:
                 pass
 
@@ -195,9 +193,7 @@ class Boot(Gtk.Window):
         except:
             rotat = self.screen_rotation
 
-        c = Cache()
-        self.caches.append(c)
-        screen = Screen(c, canvas, delay, directory,
+        screen = Screen(canvas, delay, directory,
                         align, ratio, rotat,   show_hour)
         return screen
 
@@ -209,7 +205,7 @@ class Boot(Gtk.Window):
             for j in range(self.layout_x):
                 sc = self.screen_list[self.layout_x*i+j]
                 canvas = self.__create_canvas()
-                screen = self.__build_screen(sc, canvas)
+                screen = self.__build_screen(sc, canvas, True)
                 self.screen_services.append(screen)
                 hBox.add(canvas)
             vBox.add(hBox)
@@ -296,7 +292,6 @@ class Boot(Gtk.Window):
     def __init__(self, config):
         Gtk.Window.__init__(self)
         self.filename = config
-        self.caches = []
         self.sync_services = []
         self.sync_delay = []
         self.screen_services = []

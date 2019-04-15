@@ -1,4 +1,3 @@
-#!/usr/bin/python2
 
 __author__ = "Samir KHERRAZ"
 __license__ = "GPLv3"
@@ -12,11 +11,9 @@ import threading
 
 
 class Sync(Thread):
-    def __init__(self, caches, url, localdir, delay):
+    def __init__(self, url, localdir, delay):
         Thread.__init__(self)
-        self.caches = caches
         self.name = url.split('/')[::-1][0]
-
         self.__stop = threading.Event()
         self.name = url.split("/")[-1]
         self.delay = float(delay)
@@ -30,8 +27,6 @@ class Sync(Thread):
                 open(self.localdir+self.name+".sync_lock", 'w').close()
                 os.system(self.cmd)
                 os.remove(self.localdir+self.name+".sync_lock")
-                for cache in self.caches:
-                    cache.clear(self.name)
                 self.__stop.wait(self.delay)
             except:
                 print("sync error")
@@ -40,6 +35,7 @@ class Sync(Thread):
         return self.__stop.isSet()
 
     def wait(self):
+        pass
         self.__ready.wait()
 
     def stop(self):
