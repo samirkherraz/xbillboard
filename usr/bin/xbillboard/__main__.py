@@ -12,7 +12,12 @@ import time
 from Sync import Sync
 from Screen import Screen
 import signal
-from gi.repository import Gtk, Gdk, GLib
+import gi
+gi.require_version('Poppler', '0.18')
+gi.require_version('Gtk', '3.0')
+gi.require_version('Gdk', '3.0')
+gi.require_version('GdkX11', '3.0')
+from gi.repository import Gtk, Gdk, GLib, GdkX11
 import configparser
 import os
 import sys
@@ -20,11 +25,11 @@ import logging
 LOGFORMAT = "%(asctime)s [%(levelname)s] %(threadName)s::%(module)s \n %(message)s"
 logging.basicConfig(
     stream=sys.stdout, level=logging.DEBUG, format=LOGFORMAT)
-# logging.disable(sys.maxsize)
+
+logging.disable(sys.maxsize)
 
 Gdk.threads_init()
 signal.signal(signal.SIGINT, signal.SIG_DFL)
-
 
 class Permute(Thread):
     def __init__(self, container, main, secondary=[]):
@@ -78,7 +83,7 @@ class Boot(Gtk.Window):
         self.move(0, 0)
         self.set_default_size(self.get_screen().get_width(),
                               self.get_screen().get_height())
-        self.set_decorated(False)
+        #self.set_decorated(False)
         self.connect("delete_event", Gtk.main_quit)
         self.connect("key-press-event", self.on_key_release)
         self.notebook = Gtk.Notebook()
@@ -138,13 +143,13 @@ class Boot(Gtk.Window):
     """
 
     def __create_canvas(self):
-        canvas = Gtk.Image()
+        canvas = Gtk.DrawingArea()
         return canvas
 
     def __prepare_dir(self, dir):
         try:
             os.stat(dir)
-            os.system("rm "+dir+"*")
+            #os.system("rm "+dir+"*")
         except:
             os.mkdir(dir)
 

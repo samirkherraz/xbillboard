@@ -8,18 +8,18 @@ import os
 import sys
 from threading import Thread
 import threading
-
+import hashlib
 
 class Sync(Thread):
     def __init__(self, url, localdir, delay):
         Thread.__init__(self)
-        self.name = url.split('/')[::-1][0]
         self.__stop = threading.Event()
-        self.name = url.split("/")[-1]
+        self.name = hashlib.sha256(url.split("/")[-1].encode()).hexdigest()
+        self.ext = url.split(".")[-1]
         self.delay = float(delay)
         self.url = url
         self.localdir = localdir
-        self.cmd = "wget -q -N "+self.url+" -P "+self.localdir
+        self.cmd = "wget -q -N '"+self.url+"' -O "+self.localdir+"/"+self.name+"."+self.ext
 
     def run(self):
         while not self.stopped():
@@ -33,10 +33,6 @@ class Sync(Thread):
 
     def stopped(self):
         return self.__stop.isSet()
-
-    def wait(self):
-        pass
-        self.__ready.wait()
 
     def stop(self):
         self.__stop.set()

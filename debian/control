@@ -9,5 +9,5 @@ Homepage: https://github.com/samirkherraz/xbillboard
 Package: xbillboard
 Architecture: all
 Depends:python, python-gtk2, python-gtkglext1, python-poppler, wget, xorg, lightdm, unclutter
-Depends:python3,libgtk-3-dev,libpoppler-glib-dev,python3-gi-cairo, wget, xorg, lightdm, unclutter
+Depends:python3,libgtk-3-dev,gir1.2-poppler-0.18,python3-gi-cairo, wget, xorg, lightdm, unclutter
 Description: Transforms your debian into a billboard

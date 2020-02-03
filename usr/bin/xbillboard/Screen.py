@@ -4,7 +4,11 @@ __license__ = "GPLv3"
 __maintainer__ = "Samir KHERRAZ"
 __email__ = "samir.kherraz@outlook.fr"
 
+from Cache import Cache
+import cv2
+from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, Poppler
 import datetime
+import time
 import logging
 import os
 import random
@@ -12,13 +16,9 @@ import sys
 import threading
 from threading import Lock, Thread
 import numpy as np
-import gi
-gi.require_version('Poppler', '0.18')
-gi.require_version('Gtk', '3.0')
-gi.require_version('Gdk', '3.0')
-from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, Poppler
-import cv2
-from Cache import Cache
+import vlc
+from gi.repository import Gtk, Gst, GdkX11, GstVideo
+Gst.init(None)
 """
 FileType class is used to identify what is the type of the file the program is
     going to render, each type has it's own rendering method
@@ -26,7 +26,9 @@ FileType class is used to identify what is the type of the file the program is
 
 
 class Screen(Thread):
-
+    VLC = vlc.Instance(['--no-xlib','--codec=omxil','--vout=omxil-vout','--input-repeat=-1', 
+                     '--no-video-title-show', '--mouse-hide-timeout=0'])
+        
     class FileType:
         PDF = 1
         IMAGE = 2
@@ -83,6 +85,7 @@ class Screen(Thread):
 
     def __init__(self, canvas, delay, files_basepath, align, ratio, rotation, draw_hour=False):
         Thread.__init__(self)
+        #self.player = Screen.VLC.media_player_new()
         self.__current_file = {}
         self.name = files_basepath.split('/')[::-1][1]
         self.__critical = Lock()
@@ -99,13 +102,19 @@ class Screen(Thread):
         self.__counter = 0
         self.__current_doc = None
         self.rotation = int(rotation)
-        self.canvas = canvas
+        self.canvas = canvas    
         self.files_basepath = files_basepath
         self.delay = float(delay)
         self.align = Screen.Alignement().get(align)
         self.ratio = Screen.Ratio().get(ratio)
         self.canvas.connect("draw", self.on_expose)
         self.canvas.connect_after("draw", self.on_expose_end)
+        self.player = Gst.ElementFactory.make("playbin", "player")
+        bus = self.player.get_bus()
+        bus.add_signal_watch()
+        bus.enable_sync_message_emission()
+        bus.connect("sync-message::element", self.on_sync_message)
+        
 
     """
     loads the file into memory and defines the rendering procedure according to its type.
@@ -123,7 +132,7 @@ class Screen(Thread):
                 return self.play_media(self.delay, f["path"])
             elif self.__current_file["ext"] in Screen.FileType.VIDEO_LIST:
                 self.__current_file["type"] = Screen.FileType.VIDEO
-                return self.play_media(0.02, f["path"])
+                return self.play_media(0, f["path"])
             else:
                 logging.warning(
                     self.__current_file["name"]+" unsuported file type")
@@ -152,7 +161,7 @@ class Screen(Thread):
                 self.__current_doc = document.get_page(i)
                 self.__translate = self.translate(self.__current_doc.get_size()[
                     0], self.__current_doc.get_size()[1])
-                                        
+
                 self.query_draw(delay)
                 i += 1
             return True
@@ -162,44 +171,62 @@ class Screen(Thread):
 
     def play_media(self, delay=0.1, file=None):
         try:
-            if file is None:
-                file = self.__current_file["path"]
-            cap = cv2.VideoCapture(file)
+            # if file is None:
+            #     file = self.__current_file["path"]
+            # cap = cv2.VideoCapture(file)
+            # fps = cap.get(cv2.CAP_PROP_FPS)
+            # self.__counter = 0
+            # end = False
+            # while cap.isOpened() and cap.grab() and not self.stopped():
+            #     start = time.time()
+            #     self.__counter += 1
+            #     _, img = cap.retrieve()
+            #     self.__translate = self.translate(img.shape[1], img.shape[0])
 
-            self.__counter = 0
-            end = False
-            while cap.isOpened() and not self.stopped():
-                self.__counter += 1
-                
-                ret, img = cap.read()
-                end = (img is None or ret is False)
-                if end:
-                    break
-                else:
-                    self.__translate = self.translate(
-                            img.shape[1], img.shape[0])
-                    img = cv2.resize(
-                            img, (self.__translate["width"], self.__translate["height"]),  interpolation=cv2.INTER_NEAREST)
-                    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                    self.__current_doc = GdkPixbuf.Pixbuf.new_from_data(img.tostring(),
-                                                                     GdkPixbuf.Colorspace.RGB,
-                                                                     False,
-                                                                     8,
-                                                                     img.shape[1],
-                                                                     img.shape[0],
-                                                                     img.shape[2]*img.shape[1])
-                        
-                        
+            #     img = cv2.resize(
+            #         img, (self.__translate["width"], self.__translate["height"]))
+            #     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            #     self.__current_doc = GdkPixbuf.Pixbuf.new_from_data(img.tostring(),
+            #                                                         GdkPixbuf.Colorspace.RGB,
+            #                                                         False,
+            #                                                         8,
+            #                                                         img.shape[1],
+            #                                                         img.shape[0],
+            #                                                         img.shape[2]*img.shape[1])
+            #     end = time.time()
+            #     delay = (1/fps) - (end-start)
+            #     self.query_draw(delay)
+            # cap.release()
+            # return True
 
-                self.query_draw(delay)
-            cap.release()
-            return True
+            # self.player.set_media(Screen.VLC.media_new(self.__current_file["path"]))
+            # self.player.play()
+            # self.__ended.wait(1.5)
+            # if self.player.is_playing():
+            #     length = self.player.get_length()
+            #     self.__ended.wait(length/1000)
+            # else:
+            #     self.__ended.wait(delay)
+            # self.player.stop()
+            #vlcInstance.release()
+            self.player.set_property("uri", "file://" + self.__current_file["path"])
+            self.player.set_state(Gst.State.PLAYING)
+
+            
         except ValueError as e:
             logging.error(e)
             return False
     """
     send an exposure signal to the Gtk window for display and wait for a delay
     """
+
+
+    def on_sync_message(self, bus, message):
+        if message.get_structure().get_name() == 'prepare-window-handle':
+                imagesink = message.src
+                imagesink.set_property("force-aspect-ratio", True)
+                imagesink.set_window_handle(self.canvas.get_window().get_xid())
+
 
     def query_draw(self, delay=0.05):
         if not self.stopped():
@@ -259,6 +286,7 @@ class Screen(Thread):
 
     def run(self):
         rotat = 0
+        #self.player.set_xwindow(self.canvas.get_window().get_xid())
         while not self.stopped():
             try:
                 self.__pause.wait()
@@ -360,12 +388,12 @@ class Screen(Thread):
     def draw_frame(self, cr):
         logging.info("asked to drawing frame")
         try:
-            
+
             if self.__current_doc is not None:
                 Gdk.cairo_set_source_pixbuf(
-                     cr, self.__current_doc.copy(), 0, 0)
+                    cr, self.__current_doc, 0, 0)
                 cr.translate(self.__translate["translate_x"],
-                              self.__translate["translate_y"])
+                             self.__translate["translate_y"])
                 cr.paint()
         except ValueError as e:
             logging.error(e)
@@ -376,7 +404,7 @@ class Screen(Thread):
             time = now.strftime("%H:%M")
 
             cr.set_font_size(self.canvas.get_allocated_height()/5)
-            (x, y, width, height, dx, dy) = cr.text_extents(time)
+            (_, _, width, height, _, _) = cr.text_extents(time)
 
             cr.rectangle(self.canvas.get_allocated_width()/2 - width,
                          self.canvas.get_allocated_height()/2 - height, 2*width, 2*height)
