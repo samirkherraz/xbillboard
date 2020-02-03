@@ -16,7 +16,8 @@ import gi
 gi.require_version('Poppler', '0.18')
 gi.require_version('Gtk', '3.0')
 gi.require_version('Gdk', '3.0')
-gi.require_version('GdkX11', '3.0')
+gi.require_version('Gdk', '3.0')
+gi.require_version('GstVideo', '1.0')
 from gi.repository import Gtk, Gdk, GLib, GdkX11
 import configparser
 import os
@@ -26,7 +27,7 @@ LOGFORMAT = "%(asctime)s [%(levelname)s] %(threadName)s::%(module)s \n %(message
 logging.basicConfig(
     stream=sys.stdout, level=logging.DEBUG, format=LOGFORMAT)
 
-logging.disable(sys.maxsize)
+#logging.disable(sys.maxsize)
 
 Gdk.threads_init()
 signal.signal(signal.SIGINT, signal.SIG_DFL)
