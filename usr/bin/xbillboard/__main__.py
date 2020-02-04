@@ -16,20 +16,22 @@ import gi
 gi.require_version('Poppler', '0.18')
 gi.require_version('Gtk', '3.0')
 gi.require_version('Gdk', '3.0')
-gi.require_version('Gdk', '3.0')
+gi.require_version('Gst', '1.0')
 gi.require_version('GstVideo', '1.0')
-from gi.repository import Gtk, Gdk, GLib, GdkX11
+from gi.repository import Gtk, Gdk, GLib, GdkX11,Gst,GObject
 import configparser
 import os
 import sys
 import logging
+
+
 LOGFORMAT = "%(asctime)s [%(levelname)s] %(threadName)s::%(module)s \n %(message)s"
 logging.basicConfig(
     stream=sys.stdout, level=logging.DEBUG, format=LOGFORMAT)
 
 #logging.disable(sys.maxsize)
 
-Gdk.threads_init()
+
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 class Permute(Thread):
@@ -64,7 +66,6 @@ class Permute(Thread):
                 self.reset()
 
             self.wait()
-
     def wait(self):
         for s in self.active:
             s.wait()
@@ -145,12 +146,13 @@ class Boot(Gtk.Window):
 
     def __create_canvas(self):
         canvas = Gtk.DrawingArea()
+        canvas.set_double_buffered(True)
         return canvas
 
     def __prepare_dir(self, dir):
         try:
             os.stat(dir)
-            #os.system("rm "+dir+"*")
+            os.system("rm "+dir+"*")
         except:
             os.mkdir(dir)
 
@@ -297,6 +299,7 @@ class Boot(Gtk.Window):
 
     def __init__(self, config):
         Gtk.Window.__init__(self)
+        Screen.LOGO = Screen.File("/usr/share/backgrounds/xbillboard.svg")
         self.filename = config
         self.sync_services = []
         self.sync_delay = []
@@ -338,7 +341,9 @@ if __name__ == '__main__':
         configFile = userConfig
     except:
         configFile = globalConfig
-
+    GObject.threads_init()
+    Gdk.threads_init()
+    Gst.init(None)
     mainBoot = Boot(configFile)
     Gdk.threads_enter()
     Gtk.main()
