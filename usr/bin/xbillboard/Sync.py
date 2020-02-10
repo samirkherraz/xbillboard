@@ -22,7 +22,7 @@ class Sync(Thread):
         self.cmd = "wget -q -N '"+self.url+"' -O "+self.localdir+"/"+self.name+"."+self.ext
 
     def run(self):
-        while not self.stopped():
+            #while not self.stopped():
             try:
                 open(self.localdir+self.name+"."+self.ext+".sync_lock", 'w').close()
                 os.system(self.cmd)

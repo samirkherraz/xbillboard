@@ -159,6 +159,10 @@ class Screen(Thread, Gtk.Window):
         self.draw_end = Screen.LockEventValue()
         self.draw_end.set()
 
+        self.player = Screen.LockEventValue()
+        self.player_video_end = Screen.LockEventValue()
+        self.player_video_end.set()
+
         self.draw_hour = draw_hour
 
         self.pdf_page_number = 0
@@ -169,29 +173,31 @@ class Screen(Thread, Gtk.Window):
         self.delay = float(delay)
         self.align = Screen.Alignement().get(align)
         self.ratio = Screen.Ratio().get(ratio)
-        self.player = Screen.LockEventValue()
-        self.player_video_end = Screen.LockEventValue()
         self.canvas.connect("draw", self.on_expose)
         self.canvas.connect_after("draw", self.on_expose_end)
+        self.create_player()
+        self.canvas.connect("realize", self.realize)
+
+    def realize(self, o):
+        self.player.get_value().set_xwindow(self.canvas.get_window().get_xid())
 
     """
     prints all pages of the PDF one by one
     """
 
     def create_player(self):
-            self.player.set_value(Screen.VLC.media_player_new())
-            self.player.get_value().audio_set_mute(True)
-            self.player_events = self.player.get_value().event_manager()
-            self.player_events.event_attach(
-                vlc.EventType.MediaPlayerEndReached, self.play_video_ended)
-            self.query_draw()
+        self.player.set_value(Screen.VLC.media_player_new())
+        self.player_events = self.player.get_value().event_manager()
+        self.player_events.event_attach(
+            vlc.EventType.MediaPlayerEndReached, self.play_video_ended)
+        self.player.get_value().audio_set_mute(True)
 
     def destroy_player(self):
         if self.player.get_value() is not None:
             self.player.get_value().stop()
-            self.player_video_end.set()
             self.player.get_value().release()
             self.player.set_value(None)
+            self.player_video_end.set()
 
     def play_video_ended(self, o):
         self.player_video_end.set()
@@ -243,17 +249,16 @@ class Screen(Thread, Gtk.Window):
     def play_video(self, file_path):
         try:
             self.mode.set_value(Screen.Modes.VIDEO)
-            self.create_player()
-            self.player.get_value().set_mrl(file_path)
-            self.player_video_end.clear()
-            self.player.get_value().play()
-            self.player_video_end.wait()
-            self.player.get_value().stop()
-            self.destroy_player()
+            self.query_draw()
+            with self.canvas.freeze_notify():
+                self.player_video_end.clear()
+                self.player.get_value().set_mrl(file_path)
+                self.player.get_value().play()
+                self.player_video_end.wait()
+                self.player.get_value().stop()
             return True
 
         except Exception as e:
-            print(e)
             logging.error(e)
             return False
     """
@@ -312,6 +317,7 @@ class Screen(Thread, Gtk.Window):
                     rotat = 0
             except Exception as e:
                 logging.error(e)
+        self.destroy_player()
 
     """
     stop Robin round and leave the thread
@@ -322,13 +328,13 @@ class Screen(Thread, Gtk.Window):
         self.loop_end.clear()
 
     def reset(self):
-        self.destroy_player()
+        self.player_video_end.set()
         self.loop_end.clear()
         self.loop_pause.set()
         self.draw_end.set()
 
     def stop(self):
-        self.destroy_player()
+        self.player_video_end.set()
         self.loop_stop.set()
         self.loop_end.set()
         self.draw_end.set()
@@ -423,10 +429,9 @@ class Screen(Thread, Gtk.Window):
                     cr.set_source_rgb(1, 1, 1)
                     cr.show_text(time)
                     return True
-                elif self.mode.get_value() == Screen.Modes.VIDEO:
+                elif self.mode.get_value() == Screen.Modes.VIDEO and self.player.get_value() is not None:
                     cr.set_source_rgb(0, 0, 0)
                     cr.paint()
-                    self.player.get_value().set_xwindow(self.canvas.get_window().get_xid())
                     return True
             return False
         except Exception as e:
@@ -436,7 +441,8 @@ class Screen(Thread, Gtk.Window):
     def on_expose(self, widget, cr):
         try:
             self.draw_end.clear()
-            self.draw(cr)
+            with self.canvas.freeze_notify():
+                self.draw(cr)
         except Exception as e:
             logging.error(e)
 

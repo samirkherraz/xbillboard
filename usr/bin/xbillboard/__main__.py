@@ -27,7 +27,7 @@ LOGFORMAT = "%(asctime)s [%(levelname)s] %(threadName)s::%(module)s \n %(message
 logging.basicConfig(
     stream=sys.stdout, level=logging.DEBUG, format=LOGFORMAT)
 
-logging.disable(sys.maxsize)
+#logging.disable(sys.maxsize)
 
 
 signal.signal(signal.SIGINT, signal.SIG_DFL)
