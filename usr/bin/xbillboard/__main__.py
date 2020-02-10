@@ -16,20 +16,18 @@ import gi
 gi.require_version('Poppler', '0.18')
 gi.require_version('Gtk', '3.0')
 gi.require_version('Gdk', '3.0')
-gi.require_version('Gst', '1.0')
-gi.require_version('GstVideo', '1.0')
-from gi.repository import Gtk, Gdk, GLib, GdkX11,Gst,GObject
+from gi.repository import Gtk, Gdk, GLib, GdkX11,GObject
 import configparser
 import os
 import sys
 import logging
-
+import vlc
 
 LOGFORMAT = "%(asctime)s [%(levelname)s] %(threadName)s::%(module)s \n %(message)s"
 logging.basicConfig(
     stream=sys.stdout, level=logging.DEBUG, format=LOGFORMAT)
 
-#logging.disable(sys.maxsize)
+logging.disable(sys.maxsize)
 
 
 signal.signal(signal.SIGINT, signal.SIG_DFL)
@@ -90,7 +88,7 @@ class Boot(Gtk.Window):
         self.connect("key-press-event", self.on_key_release)
         self.notebook = Gtk.Notebook()
         self.notebook.set_show_tabs(False)
-        self.notebook.set_show_border(True)
+        self.notebook.set_show_border(False)
 
     """
     get config parametter and rise exception if error occured
@@ -146,7 +144,7 @@ class Boot(Gtk.Window):
 
     def __create_canvas(self):
         canvas = Gtk.DrawingArea()
-        canvas.set_double_buffered(True)
+        canvas.set_app_paintable(True)
         return canvas
 
     def __prepare_dir(self, dir):
@@ -213,7 +211,7 @@ class Boot(Gtk.Window):
             for j in range(self.layout_x):
                 sc = self.screen_list[self.layout_x*i+j]
                 canvas = self.__create_canvas()
-                screen = self.__build_screen(sc, canvas, True)
+                screen = self.__build_screen(sc, canvas, False)
                 self.screen_services.append(screen)
                 hBox.add(canvas)
             vBox.add(hBox)
@@ -300,6 +298,8 @@ class Boot(Gtk.Window):
     def __init__(self, config):
         Gtk.Window.__init__(self)
         Screen.LOGO = Screen.File("/usr/share/backgrounds/xbillboard.svg")
+        Screen.VLC = vlc.Instance("--no-xlib")
+        Screen.VLC_LOCK = Lock()
         self.filename = config
         self.sync_services = []
         self.sync_delay = []
@@ -342,10 +342,6 @@ if __name__ == '__main__':
     except:
         configFile = globalConfig
     GObject.threads_init()
-    Gdk.threads_init()
-    Gst.init(None)
     mainBoot = Boot(configFile)
-    Gdk.threads_enter()
     Gtk.main()
-    Gdk.threads_leave()
     mainBoot.stop()

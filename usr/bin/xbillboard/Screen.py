@@ -1,34 +1,70 @@
-## https://lubosz.wordpress.com/2014/05/27/gstreamer-overlay-opengl-sink-example-in-python-3/
+#  https://lubosz.wordpress.com/2014/05/27/gstreamer-overlay-opengl-sink-example-in-python-3/
 __author__ = "Samir KHERRAZ"
 __license__ = "GPLv3"
 __maintainer__ = "Samir KHERRAZ"
 __email__ = "samir.kherraz@outlook.fr"
 
 
+from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, Poppler, GdkX11, GObject
+import vlc
+import numpy as np
+from threading import Lock, Thread
+import threading
+import sys
+import random
+import os
+import logging
+import time
+import datetime
 import gi
 gi.require_version('Poppler', '0.18')
 gi.require_version('Gtk', '3.0')
 gi.require_version('Gdk', '3.0')
-gi.require_version('Gst', '1.0')
-gi.require_version('GstVideo', '1.0')
-from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, Poppler, GdkX11, GstVideo, Gst, GObject
-import datetime
-import time
-import logging
-import os
-import random
-import sys
-import threading
-from threading import Lock, Thread
-import numpy as np
-
 """
 FileType class is used to identify what is the type of the file the program is
     going to render, each type has it's own rendering method
 """
 
 
-class Screen(Thread):
+class Screen(Thread, Gtk.Window):
+
+    class LockEventValue():
+        def __init__(self):
+            self.event = threading.Event()
+            self.lock = threading.Lock()
+            self.value = None
+
+        def wait(self):
+            self.event.wait()
+
+        def timeout(self, delay=0):
+            self.event.wait(delay)
+
+        def set(self):
+            with self.lock:
+                self.event.set()
+
+        def isSet(self):
+            with self.lock:
+                return self.event.isSet()
+
+        def clear(self):
+            with self.lock:
+                self.event.clear()
+
+        def set_value(self, value):
+            with self.lock:
+                self.value = value
+
+        def get_value(self):
+            with self.lock:
+                return self.value
+
+        def acquire(self):
+            self.lock.acquire()
+
+        def release(self):
+            self.lock.release()
 
     class Modes:
         FRAME = 0
@@ -39,13 +75,11 @@ class Screen(Thread):
     class FileType:
         PDF = 1
         IMAGE = 2
-        GIF = 3
         VIDEO = 4
         HOUR = 5
         NONE = 0
         PDF_LIST = [".PDF"]
         IMAGE_LIST = [".JPG", ".JPEG", ".PNG", ".SVG"]
-        GIF_LIST = []
         VIDEO_LIST = [".GIF", ".MP4"]
 
     class Ratio:
@@ -108,72 +142,81 @@ class Screen(Thread):
     it is showed if errors occured
     """
     LOGO = None
+    VLC = None
+    VLC_LOCK = None
 
     def __init__(self, canvas, delay, files_basepath, align, ratio, rotation, draw_hour=False):
+        Gtk.Window.__init__(self)
         Thread.__init__(self)
-        self.__current_file = {}
-        self.__hidden = Gtk.DrawingArea()
-        self.name = files_basepath.split('/')[::-1][1]
-        self.__critical = Lock()
-        self.__pause = threading.Event()
-        self.__fileready = threading.Event()
-        self.__videoplay = threading.Event()
-        self.__ended = threading.Event()
-        self.__stop = threading.Event()
-        self.__on_expose_ended = threading.Event()
-        self.__on_expose_started = threading.Event()
-        self.__drawing_job = threading.Event()
-        self.__ended.clear()
-        self.__on_expose_ended.set()
-        self.__drawing_hour = draw_hour
-        self.__counter = 0
-        self.__frame = None
-        self.__mode = Screen.Modes.HOUR
-        self.enabled = True
+        self.player_lock = threading.Lock()
+        self.mode = Screen.LockEventValue()
+        self.mode.set_value(Screen.Modes.HOUR)
+        self.loop_pause = Screen.LockEventValue()
+        self.loop_end = Screen.LockEventValue()
+        self.loop_stop = Screen.LockEventValue()
+        self.loop_end.clear()
+
+        self.draw_end = Screen.LockEventValue()
+        self.draw_end.set()
+
+        self.draw_hour = draw_hour
+
+        self.pdf_page_number = 0
+        self.frame = Screen.LockEventValue()
         self.rotation = int(rotation)
         self.canvas = canvas
         self.files_basepath = files_basepath
         self.delay = float(delay)
         self.align = Screen.Alignement().get(align)
         self.ratio = Screen.Ratio().get(ratio)
+        self.player = Screen.LockEventValue()
+        self.player_video_end = Screen.LockEventValue()
         self.canvas.connect("draw", self.on_expose)
         self.canvas.connect_after("draw", self.on_expose_end)
-        self.canvas.connect("realize", self.on_realize)
-        self.player = Gst.ElementFactory.make("playbin", None)
-        bus =  self.player.get_bus()
-        bus.add_signal_watch()
-        bus.enable_sync_message_emission()
-        bus.connect("message", self.on_message)
 
     """
     prints all pages of the PDF one by one
     """
 
-    def on_realize(self, widget):
-        window = widget.get_window()
-        window_handle = window.get_xid()
-        self.player.set_window_handle(window_handle)
+    def create_player(self):
+            self.player.set_value(Screen.VLC.media_player_new())
+            self.player.get_value().audio_set_mute(True)
+            self.player_events = self.player.get_value().event_manager()
+            self.player_events.event_attach(
+                vlc.EventType.MediaPlayerEndReached, self.play_video_ended)
+            self.query_draw()
 
+    def destroy_player(self):
+        if self.player.get_value() is not None:
+            self.player.get_value().stop()
+            self.player_video_end.set()
+            self.player.get_value().release()
+            self.player.set_value(None)
+
+    def play_video_ended(self, o):
+        self.player_video_end.set()
 
     def play_hour(self):
-        self.__mode = Screen.Modes.HOUR
-        self.query_draw(self.delay)
+        self.mode.set_value(Screen.Modes.HOUR)
+        self.query_draw()
+        self.query_wait()
 
     def play_pdf(self, file_path):
         try:
-            self.__mode = Screen.Modes.PDFPAGE
+            self.mode.set_value(Screen.Modes.PDFPAGE)
             document = Poppler.Document.new_from_file(
                 "file://"+file_path, None)
             logging.info("file loaded")
             n_pages = document.get_n_pages()
             i = 0
             while i < n_pages and not self.stopped():
-                self.__counter = i
-                self.__frame = document.get_page(i)
-                self.__translate = self.translate(self.__frame.get_size()[
-                    0], self.__frame.get_size()[1])
+                self.pdf_page_number = i
+                self.frame.set_value(document.get_page(i))
+                self.frame_size_scale = self.translate(self.frame.get_value().get_size()[
+                    0], self.frame.get_value().get_size()[1])
 
-                self.query_draw(self.delay)
+                self.query_draw()
+                self.query_wait()
                 i += 1
             return True
         except Exception as e:
@@ -182,15 +225,16 @@ class Screen(Thread):
 
     def play_image(self, file_path):
         try:
-            self.__mode = Screen.Modes.FRAME
-            self.__frame = GdkPixbuf.Pixbuf.new_from_file(file_path)
-            self.__translate = self.translate(
-                self.__frame.get_width(),
-                self.__frame.get_height()
+            self.mode.set_value(Screen.Modes.FRAME)
+            self.frame.set_value(GdkPixbuf.Pixbuf.new_from_file(file_path))
+            self.frame_size_scale = self.translate(
+                self.frame.get_value().get_width(),
+                self.frame.get_value().get_height()
             )
-            self.__frame = self.__frame.scale_simple(
-                self.__translate["width"], self.__translate["height"], 0)
-            self.query_draw(self.delay)
+            self.frame.set_value(self.frame.get_value().scale_simple(
+                self.frame_size_scale["width"], self.frame_size_scale["height"], 0))
+            self.query_draw()
+            self.query_wait()
             return True
         except Exception as e:
             logging.error(e)
@@ -198,34 +242,33 @@ class Screen(Thread):
 
     def play_video(self, file_path):
         try:
-            self.__mode = Screen.Modes.VIDEO
-            self.player.set_property("uri", "file://" + file_path)
-            with self.__critical:
-                self.__on_expose_ended.clear()
-                self.player.set_state(Gst.State.PLAYING)
-            self.__on_expose_ended.wait()
-            self.player.set_state(Gst.State.READY)
+            self.mode.set_value(Screen.Modes.VIDEO)
+            self.create_player()
+            self.player.get_value().set_mrl(file_path)
+            self.player_video_end.clear()
+            self.player.get_value().play()
+            self.player_video_end.wait()
+            self.player.get_value().stop()
+            self.destroy_player()
             return True
+
         except Exception as e:
+            print(e)
             logging.error(e)
             return False
     """
     send an exposure signal to the Gtk window for display and wait for a delay
     """
 
-    def on_message(self, bus, message):
-        t = message.type
-        if t == Gst.MessageType.EOS or t == Gst.MessageType.ERROR:
-            with self.__critical:
-                self.__on_expose_ended.set()
-            
-    def query_draw(self, delay=0.05):
+    def query_wait(self):
         if not self.stopped():
-            with self.__critical:
-                self.__on_expose_ended.clear()
-                GLib.idle_add(self.canvas.queue_draw)
-            self.__on_expose_ended.wait()
-            self.__stop.wait(delay)
+            self.loop_stop.timeout(self.delay)
+
+    def query_draw(self):
+        if not self.stopped():
+            self.draw_end.clear()
+            GLib.idle_add(self.canvas.queue_draw)
+            self.draw_end.wait()
 
     """
     the main of the thread
@@ -247,26 +290,25 @@ class Screen(Thread):
         rotat = 0
         while not self.stopped():
             try:
-                self.__pause.wait()
+                self.loop_pause.wait()
                 files = self.list_dir()
                 found = False
                 for f in files:
-                    self.__frame = None
+                    self.frame.set_value(None)
                     if getattr(self, f.method)(f.path):
                         logging.info("file play ended")
                         found = True
                 if len(files) < 1 or not found:
                     logging.info("No files")
                     getattr(self, Screen.LOGO.method)(Screen.LOGO.path)
-                if self.__drawing_hour:
+                if self.draw_hour:
                     logging.info("Need to draw hour")
                     self.play_hour()
                 if rotat < self.rotation:
                     rotat += 1
                 else:
-                    with self.__critical:
-                        self.__ended.set()
-                        self.__pause.clear()
+                    self.loop_end.set()
+                    self.loop_pause.clear()
                     rotat = 0
             except Exception as e:
                 logging.error(e)
@@ -276,31 +318,28 @@ class Screen(Thread):
     """
 
     def wait(self):
-        self.__ended.wait()
-        with self.__critical:
-            self.__ended.clear()
+        self.loop_end.wait()
+        self.loop_end.clear()
 
     def reset(self):
-        with self.__critical:
-            self.player.set_state(Gst.State.READY)
-            self.__ended.clear()
-            self.__pause.set()
-            self.__on_expose_ended.set()
+        self.destroy_player()
+        self.loop_end.clear()
+        self.loop_pause.set()
+        self.draw_end.set()
 
     def stop(self):
-        with self.__critical:
-            self.player.set_state(Gst.State.READY)
-            self.__stop.set()
-            self.__ended.set()
-            self.__on_expose_ended.set()
-            self.__pause.set()
+        self.destroy_player()
+        self.loop_stop.set()
+        self.loop_end.set()
+        self.draw_end.set()
+        self.loop_pause.set()
 
     """
     test if a stop is requested
     """
 
     def stopped(self):
-        return self.__stop.isSet()
+        return self.loop_stop.isSet()
 
     """
     Allows you to calculate the size of the document to be printed according to the size of the screen
@@ -347,51 +386,62 @@ class Screen(Thread):
 
     def draw(self, cr):
         try:
-            cr.set_source_rgb(1, 1, 1)
-            cr.paint()
-            if self.__mode == Screen.Modes.PDFPAGE and self.__frame is not None:
-                cr.translate(self.__translate["translate_x"],
-                             self.__translate["translate_y"])
-                cr.scale(self.__translate["scale_w"],
-                         self.__translate["scale_h"])
-                self.__frame.render(cr)
-            if self.__mode == Screen.Modes.FRAME and self.__frame is not None:
-                Gdk.cairo_set_source_pixbuf(
-                    cr, self.__frame, self.__translate["translate_x"], self.__translate["translate_y"])
-                cr.scale(self.__translate["scale_w"],
-                         self.__translate["scale_h"])
-                cr.paint()
-            elif self.__mode == Screen.Modes.HOUR:
-                now = datetime.datetime.now()
-                time = now.strftime("%H:%M")
+            if not self.draw_end.isSet():
+                if self.mode.get_value() == Screen.Modes.PDFPAGE and self.frame.get_value() is not None:
+                    cr.set_source_rgb(1, 1, 1)
+                    cr.paint()
+                    cr.translate(self.frame_size_scale["translate_x"],
+                                 self.frame_size_scale["translate_y"])
+                    cr.scale(self.frame_size_scale["scale_w"],
+                             self.frame_size_scale["scale_h"])
+                    self.frame.get_value().render(cr)
+                    return True
+                if self.mode.get_value() == Screen.Modes.FRAME and self.frame.get_value() is not None:
+                    cr.set_source_rgb(1, 1, 1)
+                    cr.paint()
+                    Gdk.cairo_set_source_pixbuf(
+                        cr, self.frame.get_value(), self.frame_size_scale["translate_x"], self.frame_size_scale["translate_y"])
+                    cr.scale(self.frame_size_scale["scale_w"],
+                             self.frame_size_scale["scale_h"])
+                    cr.paint()
+                    return True
+                elif self.mode.get_value() == Screen.Modes.HOUR:
+                    cr.set_source_rgb(1, 1, 1)
+                    cr.paint()
+                    now = datetime.datetime.now()
+                    time = now.strftime("%H:%M")
 
-                cr.set_font_size(self.canvas.get_allocated_height()/5)
-                (_, _, width, height, _, _) = cr.text_extents(time)
+                    cr.set_font_size(self.canvas.get_allocated_height()/5)
+                    (_, _, width, height, _, _) = cr.text_extents(time)
 
-                cr.rectangle(self.canvas.get_allocated_width()/2 - width,
-                             self.canvas.get_allocated_height()/2 - height, 2*width, 2*height)
-                cr.set_source_rgb(0.2, 0.2, 0.2)
-                cr.fill()
-                cr.move_to(self.canvas.get_allocated_width()/2 - width /
-                           2, self.canvas.get_allocated_height()/2 + height/2)
-                cr.set_source_rgb(1, 1, 1)
-                cr.show_text(time)
-            else:
-                pass
+                    cr.rectangle(self.canvas.get_allocated_width()/2 - width,
+                                 self.canvas.get_allocated_height()/2 - height, 2*width, 2*height)
+                    cr.set_source_rgb(0.2, 0.2, 0.2)
+                    cr.fill()
+                    cr.move_to(self.canvas.get_allocated_width()/2 - width /
+                               2, self.canvas.get_allocated_height()/2 + height/2)
+                    cr.set_source_rgb(1, 1, 1)
+                    cr.show_text(time)
+                    return True
+                elif self.mode.get_value() == Screen.Modes.VIDEO:
+                    cr.set_source_rgb(0, 0, 0)
+                    cr.paint()
+                    self.player.get_value().set_xwindow(self.canvas.get_window().get_xid())
+                    return True
+            return False
         except Exception as e:
             logging.error(e)
+            return False
 
     def on_expose(self, widget, cr):
         try:
-            self.__on_expose_ended.clear()
-            with self.__critical:
-                self.draw(cr)
+            self.draw_end.clear()
+            self.draw(cr)
         except Exception as e:
             logging.error(e)
 
     def on_expose_end(self, widget, event):
         try:
-            with self.__critical:
-                self.__on_expose_ended.set()
+            self.draw_end.set()
         except Exception as e:
             logging.error(e)

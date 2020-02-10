@@ -24,9 +24,9 @@ class Sync(Thread):
     def run(self):
         while not self.stopped():
             try:
-                open(self.localdir+self.name+".sync_lock", 'w').close()
+                open(self.localdir+self.name+"."+self.ext+".sync_lock", 'w').close()
                 os.system(self.cmd)
-                os.remove(self.localdir+self.name+".sync_lock")
+                os.remove(self.localdir+self.name+"."+self.ext+".sync_lock")
                 self.__stop.wait(self.delay)
             except:
                 print("sync error")
